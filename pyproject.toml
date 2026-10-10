@@ -1,0 +1,71 @@
+# ============================================================
+# pyproject.toml — метаданные пакета radonc_segmentation
+# ------------------------------------------------------------
+# Установка в окружение (после setup_env.py / requirements.txt):
+#   python -m pip install -e .
+# Экстры:
+#   python -m pip install -e .[quantization]   # обучение и INT8-квантизация
+#   python -m pip install -e .[dev]            # сборка exe и тесты
+# Запуск после установки (или из корня проекта без установки):
+#   python -m gui.main
+#   python -m radonc_segmentation.pipeline <PATIENT_ID>
+# ============================================================
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "radonc_segmentation"
+version = "1.0.0"
+description = "GUI pipeline for H&N organs-at-risk segmentation (OpenVINO inference, DICOM/RTSTRUCT)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "zalyalovi-arch" }]
+dependencies = [
+    "openvino==2025.2.0",
+    "numpy==2.1.3",
+    "scipy==1.15.3",
+    "SimpleITK==2.5.3",
+    "pydicom==3.0.1",
+    "nibabel==5.3.3",
+    "rt-utils==1.2.7",
+]
+
+[project.optional-dependencies]
+# Обучение своей модели и INT8-квантизация (scripts-обёртки в
+# radonc_segmentation/quantization/). torch ставить CPU-сборкой:
+#   pip install torch==2.8.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+quantization = [
+    "torch==2.8.0+cpu",
+    "onnx==1.17.0",
+    "onnxruntime>=1.20.0",
+    "nncf==2.19.0",
+    "jstyleson==0.0.2",
+    "dynamic_network_architectures==0.4.2",
+]
+dev = [
+    "pyinstaller==6.17.0",
+    "pytest>=8",
+]
+
+[project.gui-scripts]
+radonc-gui = "gui.main:main"
+
+[project.scripts]
+radonc-pipeline = "radonc_segmentation.pipeline:cli_main"
+
+[tool.setuptools]
+# gui и radonc_segmentation лежат в корне репозитория (не src-layout):
+# config.py якорит пути проекта как dirname(dirname(__file__)),
+# src-layout сломал бы этот якорь.
+packages = [
+    "radonc_segmentation",
+    "radonc_segmentation.aligned",
+    "radonc_segmentation.quantization",
+    "radonc_segmentation.external_baselines",
+    "gui",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
