@@ -11,7 +11,7 @@ for %%D in ("%LOCALAPPDATA%\miniconda3" "%USERPROFILE%\miniconda3" "%LOCALAPPDAT
 if not defined PYDIR (
     echo nnunet_env python not found.
     echo Set up the environment with one command:
-    echo   python scripts\setup_env.py
+    echo   python setup_env.py
     pause
     exit /b 1
 )

@@ -1,7 +1,7 @@
 @echo off
 rem ============================================================
 rem build.bat - rebuild nnunet_gui.exe (needed ONLY after python
-rem code changes: gui\*.py, scripts\*.py). Qt Designer .ui edits
+rem code changes: gui\*.py, radonc_segmentation\*.py). Qt Designer .ui edits
 rem do NOT require a rebuild.
 rem ============================================================
 set "PYDIR="
@@ -11,7 +11,7 @@ for %%D in ("%LOCALAPPDATA%\miniconda3" "%USERPROFILE%\miniconda3" "%LOCALAPPDAT
 if not defined PYDIR (
     echo nnunet_env python not found.
     echo Set up the environment with one command:
-    echo   python scripts\setup_env.py
+    echo   python setup_env.py
     pause
     exit /b 1
 )

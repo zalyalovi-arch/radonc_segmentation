@@ -2,15 +2,14 @@
 # setup_env.py — настройка НОВОГО компьютера одной командой
 # ------------------------------------------------------------
 # Запускается ЛЮБЫМ python (только стандартная библиотека):
-#   python "C:\путь\к\проекту\scripts\setup_env.py"
+#   python "C:\путь\к\проекту\setup_env.py"
 #
 # Что делает:
 #   1. Ищет conda (Miniconda/Anaconda) в типовых местах; если нет —
 #      предлагает скачать и установить Miniconda автоматически.
 #   2. Создаёт окружение nnunet_env (Python 3.10), если его нет.
-#   3. Ставит зависимости из requirements.txt (обычный pip, пины
-#      совместимы: tensorflow в requirements больше не входит).
-#   4. Проверяет окружение (env_check.py) и подстраивает настройки
+#   3. Ставит зависимости из requirements.txt и пакет (pip install -e .).
+#   4. Проверяет окружение (env_check) и подстраивает настройки
 #      под железо этого компьютера (config.autotune_hardware).
 #
 # Повторный запуск безопасен: шаги пропускаются, если уже сделаны.
@@ -20,8 +19,7 @@ import subprocess
 import sys
 import urllib.request
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_DIR = os.path.dirname(SCRIPTS_DIR)
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 REQ_PATH = os.path.join(PROJECT_DIR, "requirements.txt")
 
 ENV_NAME = "nnunet_env"
@@ -122,8 +120,8 @@ def main():
         print(f"  создано: {py}")
 
     # --- 3. зависимости ---
-    print("\n[3/4] Проверяю зависимости (requirements.txt)...")
-    chk = run([py, os.path.join(SCRIPTS_DIR, "env_check.py")])
+    print("\n[3/4] Проверяю зависимости (requirements.txt + пакет)...")
+    chk = run([py, "-m", "radonc_segmentation.env_check"])
     if chk.returncode == 0:
         print("  все пакеты уже установлены — пропускаю установку.")
     else:
@@ -133,23 +131,28 @@ def main():
         if r.returncode != 0:
             print("[ОШИБКА] pip завершился с ошибкой (см. вывод выше).")
             sys.exit(1)
-        chk = run([py, os.path.join(SCRIPTS_DIR, "env_check.py")])
+        # сам пакет (radonc_segmentation + gui) — в редактируемом режиме:
+        # импорты работают из любой папки, правки кода подхватываются сразу
+        r = run([py, "-m", "pip", "install", "-e", PROJECT_DIR, "--no-deps"])
+        if r.returncode != 0:
+            print("[ОШИБКА] Не удалось установить пакет (pip install -e .).")
+            sys.exit(1)
+        chk = run([py, "-m", "radonc_segmentation.env_check"])
         if chk.returncode != 0:
             print("[ВНИМАНИЕ] env_check всё ещё находит проблемы — проверьте вывод выше.")
 
     # --- 4. настройки под железо ---
     print("\n[4/4] Подстраиваю настройки под железо этого компьютера...")
-    code = ("import sys; sys.path.insert(0, r'" + SCRIPTS_DIR + "'); "
-            "import config; config.autotune_hardware(force=True); "
+    code = ("import config; config.autotune_hardware(force=True); "
             "print('DEVICE=%s NUM_THREADS=%s ACCUMULATOR=%s' % "
             "(config.DEVICE, config.NUM_THREADS, config.ACCUMULATOR))")
-    run([py, "-c", code])
+    run([py, "-c", code], cwd=PROJECT_DIR)
 
     print("\n===== ГОТОВО =====")
     print("Программа настроена. Дальше можно:")
     print('  * запустить GUI:            nnunet_gui.exe (в корне проекта)')
-    print(f'  * проверить устройства:     "{py}" "{os.path.join(SCRIPTS_DIR, "check_devices.py")}"')
-    print(f'  * смоук-тест инференса:     "{py}" "{os.path.join(SCRIPTS_DIR, "infer_ov.py")}" P110 --folds 0')
+    print(f'  * проверить устройства:     "{py}" -m radonc_segmentation.check_devices')
+    print(f'  * смоук-тест инференса:     "{py}" -m radonc_segmentation.infer_ov P110 --folds 0')
     print('  * обработать пациента:      run_pipeline.bat P110')
     print("Python окружения (на случай ручной настройки): " + py)
 
