@@ -17,6 +17,7 @@ os.environ.setdefault("QT_QPA_FONTDIR", r"C:\Windows\Fonts")
 
 # pytest добавляет корень проекта через conftest.py; при прямом запуске
 # cwd и так корень (python -m tests.smoke_gui_test)
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
