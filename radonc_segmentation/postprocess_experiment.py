@@ -28,7 +28,6 @@
 import argparse
 import csv
 import os
-import sys
 import time
 
 import numpy as np
@@ -66,7 +65,7 @@ def resolve_overlaps(seg):
     """Больший номер метки 'выигрывает': воксели старших меток вырезаются из
     младших (Lens из Eye, Cochlea из Brain/TMJ и т.п. — как в GT)."""
     out = seg.copy()
-    labels = [int(l) for l in np.unique(seg) if l > 0]
+    labels = [int(lab) for lab in np.unique(seg) if lab > 0]
     for i, hi in enumerate(labels):
         mask_hi = out == hi
         if not mask_hi.any():
@@ -80,8 +79,7 @@ def resolve_overlaps(seg):
 
 def count_overlaps(seg):
     """Число вокселей, заявленных >1 классом (до resolve_overlaps)."""
-    total = 0
-    labels = [int(l) for l in np.unique(seg) if l > 0]
+    labels = [int(lab) for lab in np.unique(seg) if lab > 0]
     occ = np.zeros(seg.shape, dtype=np.uint8)
     for lbl in labels:
         occ += (seg == lbl).astype(np.uint8)

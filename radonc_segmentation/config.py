@@ -10,7 +10,6 @@ import configparser
 import os
 import re
 import sys
-from typing import Optional
 
 
 class ConfigError(Exception):
@@ -148,8 +147,8 @@ LABELS = {
 
 def available_models():
     """Модели, пригодные для инференса: "<анатомия>/<квантизация>" по новой
-    структуре (models\<анатомия>\<квантизация>\fold_*\*.xml) плюс legacy
-    плоские подпапки models\<имя> с xml/fold_*/."""
+    структуре (models\\<анатомия>\\<квантизация>\fold_*\\*.xml) плюс legacy
+    плоские подпапки models\\<имя> с xml/fold_*/."""
     if not os.path.isdir(MODELS_ROOT):
         return []
     out = []
@@ -189,8 +188,8 @@ def resolve_model(name=None):
     """
     Разрешает имя модели из MODELS_ROOT в параметры для движка.
     name = "<анатомия>/<квантизация>" (напр. headandneck/int8) или legacy
-    "int8". Ансамбль:  <base>\fold_0..N\<xml>  -> base_path с {} и список фолдов
-    Одиночная:        <base>\<xml>            -> base_path без {}, folds=[0]
+    "int8". Ансамбль:  <base>\fold_0..N\\<xml>  -> base_path с {} и список фолдов
+    Одиночная:        <base>\\<xml>            -> base_path без {}, folds=[0]
     """
     name = str(name or MODEL).strip()
     candidates = [os.path.join(MODELS_ROOT, name)]
@@ -373,8 +372,8 @@ def write_settings(updates):
     for (sec, _lk), (orig_key, val) in remaining.items():
         by_section.setdefault(sec, []).append((orig_key, val))
     for sec, pairs in by_section.items():
-        sec_header_idx = [i for i, l in enumerate(out)
-                          if _SECTION_RE.match(l) and _SECTION_RE.match(l).group(1).strip().lower() == sec]
+        sec_header_idx = [i for i, line in enumerate(out)
+                          if _SECTION_RE.match(line) and _SECTION_RE.match(line).group(1).strip().lower() == sec]
         if not sec_header_idx:
             out += ["", f"[{sec}]"]
             out.extend(f"{k} = {v}" for k, v in pairs)
@@ -550,14 +549,14 @@ def patient_dir(patient_id):
 
 
 def validation_cases_dir():
-    """Папка валидационных кейсов текущей модели: validation\<модель>\<кейс>."""
+    r"""Папка валидационных кейсов текущей модели: validation\<модель>\<кейс>."""
     return os.path.join(VALIDATION_ROOT, MODEL_NAME)
 
 
 def validation_cases():
     """[(case, img_path, gt_path|None)] текущей модели. Поддерживаются обе
-    структуры: новая per-case (<кейс>\nnunet_input\... + <кейс>\gt\...) и
-    legacy (imagesTr\*_0000.nii.gz + labelsTr\<кейс>.nii.gz)."""
+    структуры: новая per-case (<кейс>\nnunet_input\\... + <кейс>\\gt\\...) и
+    legacy (imagesTr\\*_0000.nii.gz + labelsTr\\<кейс>.nii.gz)."""
     root = validation_cases_dir()
     out = []
     if os.path.isdir(root):
@@ -578,7 +577,7 @@ def validation_cases():
 
 
 def model_dir(quant=None):
-    """Папка весов модели: models\<анатомия>\<квантизация> (legacy-фолбэк:
+    r"""Папка весов модели: models\<анатомия>\<квантизация> (legacy-фолбэк:
     models\<квантизация> для старых установок)."""
     quant = quant or MODEL
     new = os.path.join(MODELS_ROOT, MODEL_NAME, quant)

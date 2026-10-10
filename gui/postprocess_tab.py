@@ -15,13 +15,13 @@ import SimpleITK as sitk
 
 from PySide6.QtCore import QFile, Qt, QTimer
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtWidgets import (QApplication, QFileDialog, QInputDialog,
+from PySide6.QtWidgets import (QApplication, QInputDialog,
                                QMessageBox, QTreeWidgetItem, QWidget)
 
 from radonc_segmentation import config
 from radonc_segmentation import postprocess_core as core
 from gui import UI_DIR
-from gui.mpl_canvas import MplCanvas  # noqa: F401 — нужен для промоушена в .ui
+from gui.mpl_canvas import MplCanvas
 
 WINDOW_PRESETS = {"мягкая ткань": (400, 40), "кость": (2000, 500), "лёгкие": (1500, -600)}
 
@@ -58,7 +58,6 @@ def _read_nifti_zyx(path):
 
 
 def _organ_color(label, n=31):
-    import colorsys
     import matplotlib.colors as mcolors
     return mcolors.hsv_to_rgb((((label - 1) % n) / n, 0.85, 0.95))
 
@@ -99,7 +98,6 @@ class PostprocessTab(QWidget):
 
     def _load_ui(self):
         """Загружает .ui через QUiLoader и маппит виджеты по objectName."""
-        from gui.mpl_canvas import MplCanvas
         loader = QUiLoader()
         # без регистрации промоутенный MplCanvas инстанцируется как голый QWidget
         loader.registerCustomWidget(MplCanvas)
@@ -492,7 +490,7 @@ class PostprocessTab(QWidget):
             self.busy(None)
 
     def _batch_apply(self):
-        """Применяет выбранный шаблон ко всем валидационным кейсам текущей
+        r"""Применяет выбранный шаблон ко всем валидационным кейсам текущей
         модели: перезаписывает seg_nnunet\<кейс>.nii.gz и пишет таблицу
         Dice до/после (по органам, против GT) в logs\postprocess_batch*.csv.
         Выполняется в рабочем потоке (start_job главного окна)."""
@@ -613,8 +611,8 @@ class PostprocessTab(QWidget):
         if self.ct is None:
             return
         z = self.sliderSlice.value()
-        w, l = WINDOW_PRESETS.get(self.cmbWindow.currentText(), (400, 40))
-        vmin, vmax = l - w / 2, l + w / 2
+        w, lev = WINDOW_PRESETS.get(self.cmbWindow.currentText(), (400, 40))
+        vmin, vmax = lev - w / 2, lev + w / 2
 
         for key, ax, data, title in (
                 ("gt", self.mplCanvas.ax_gt,

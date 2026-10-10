@@ -34,7 +34,7 @@ def main():
         raise SystemExit("Usage: python validation_to_nifti.py <папка с DICOM+RTSTRUCT> [case_name] [out_root]")
     dicom_folder = sys.argv[1]
     case = sys.argv[2] if len(sys.argv) > 2 else "val001"
-    out_root = sys.argv[3] if len(sys.argv) > 3 else config.validation_cases_dir()
+    sys.argv[3] if len(sys.argv) > 3 else config.validation_cases_dir()
 
     # новая per-case структура: validation\<модель>\<кейс>\{nnunet_input,gt}
     case_dir = os.path.join(config.validation_cases_dir(), case)

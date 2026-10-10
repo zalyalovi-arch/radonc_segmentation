@@ -22,7 +22,6 @@ import re
 import subprocess
 import sys
 import time
-from collections import defaultdict
 
 import numpy as np
 
@@ -136,7 +135,7 @@ def main():
             pass
 
     # ---- сводка ----
-    all_labels = sorted({l for (_c, _m), (d, *_r) in results.items() for l in d})
+    all_labels = sorted({lbl for (_c, _m), (d, *_r) in results.items() for lbl in d})
     name_by_value = {v: k for k, v in config.LABELS.items()}
 
     print("\n================ ИТОГИ ================")

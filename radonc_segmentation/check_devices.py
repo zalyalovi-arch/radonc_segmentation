@@ -2,8 +2,6 @@
 # Запуск:  python check_devices.py
 # Если в списке нет "GPU" — обновите драйвер Intel Graphics (с OpenCL).
 
-import os
-import sys
 
 import openvino as ov
 

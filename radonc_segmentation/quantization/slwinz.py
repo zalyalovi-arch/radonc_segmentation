@@ -121,7 +121,7 @@ def main():
     if os.path.exists(probs_path): os.remove(probs_path)
     if os.path.exists(counts_path): os.remove(counts_path)
 
-    print(f"💾 Creating Memory-Mapped arrays on disk...")
+    print("💾 Creating Memory-Mapped arrays on disk...")
     aggregated_probs = np.memmap(probs_path, dtype=np.float32, mode='w+', 
                                   shape=(num_classes,) + data_padded.shape)
     count_map = np.memmap(counts_path, dtype=np.float32, mode='w+', 
@@ -138,7 +138,7 @@ def main():
             steps.append(data_padded.shape[i] - PATCH_SIZE[i])
         steps_list.append(steps)
         
-    print(f"🚀 Starting Sliding Window Inference...")
+    print("🚀 Starting Sliding Window Inference...")
     print(f"   Total patches: {len(steps_list[0]) * len(steps_list[1]) * len(steps_list[2])}")
     # ============================================================
 

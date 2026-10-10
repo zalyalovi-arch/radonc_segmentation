@@ -15,7 +15,6 @@
 # ============================================================
 import argparse
 import csv
-import glob
 import os
 import subprocess
 import sys
@@ -47,7 +46,7 @@ def compare_files(file_a, file_b):
               f"Используйте пары файлов в одинаковой геометрии.")
         return None
     labels = sorted(set(np.unique(img_a)) | set(np.unique(img_b)))
-    labels = [int(l) for l in labels if int(l) > 0]
+    labels = [int(v) for v in labels if int(v) > 0]
     name_by_value = {v: k for k, v in config.LABELS.items()}
     rows = []
     for lbl in labels:
@@ -127,7 +126,7 @@ def run_validation(n_cases, csv_path=None):
             if pred.shape != gt_arr.shape:
                 print(f"[{variant}] размер предсказания {pred.shape} != GT {gt_arr.shape}, пропуск")
                 continue
-            labels = [int(l) for l in np.unique(gt_arr) if int(l) > 0]
+            labels = [int(v) for v in np.unique(gt_arr) if int(v) > 0]
             row = {}
             for lbl in labels:
                 d = dice(pred == lbl, gt_arr == lbl)
@@ -137,7 +136,7 @@ def run_validation(n_cases, csv_path=None):
             os.remove(out)
 
     # Сводная таблица
-    all_labels = sorted({l for v in per_variant.values() for _, row in v for l in row})
+    all_labels = sorted({lbl for v in per_variant.values() for _, row in v for lbl in row})
     print("\n===== СВОДКА (Dice против GT) =====")
     header = f"{'label':>5}  {'орган':<20} {'legacy':>8} {'aligned':>8} {'разница':>8}"
     print(header)

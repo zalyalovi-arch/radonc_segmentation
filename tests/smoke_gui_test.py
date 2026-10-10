@@ -94,7 +94,6 @@ def main():
                 pt.organTree.setCurrentItem(pt.organTree.topLevelItem(0))
             app.processEvents()
             if pt.selected_label is not None:
-                import numpy as np
                 if (pt.base_seg == pt.selected_label).any():
                     pt._apply_method()
                     app.processEvents()

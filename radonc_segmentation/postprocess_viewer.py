@@ -58,7 +58,6 @@ def _read_nifti_zyx(path):
 
 
 def _organ_color(label, n=31):
-    import colorsys
     return hsv_to_rgb(((label - 1) % n / n, 0.85, 0.95))
 
 
@@ -308,7 +307,8 @@ class PostprocessTab(ttk.Frame):
             h0 = core.hd95(base_m, gt_m, self.spacing)
             d1 = core.dice(work_m, gt_m)
             h1 = core.hd95(work_m, gt_m, self.spacing)
-            fmt = lambda d, h: ("—" if d is None else f"{d:.3f}") + " / " + ("—" if h is None else f"{h:.1f}")
+            def fmt(d, h):
+                return ("—" if d is None else f"{d:.3f}") + " / " + ("—" if h is None else f"{h:.1f}")
             better = (d1 is not None and d0 is not None and d1 >= d0)
             self.lbl_metrics.configure(
                 text=f"{name}\nДО:      {vol0} вокс., Dice {fmt(d0, h0)}\n"
@@ -460,7 +460,7 @@ class PostprocessTab(ttk.Frame):
             self.busy(None)
 
     def _batch_apply(self):
-        """Применяет выбранный шаблон ко всем валидационным кейсам текущей
+        r"""Применяет выбранный шаблон ко всем валидационным кейсам текущей
         модели: перезаписывает seg_nnunet\<кейс>.nii.gz и пишет таблицу
         Dice до/после (по органам, против GT) в logs\postprocess_batch.csv."""
         name = self.tpl_combo.get()
@@ -541,7 +541,6 @@ class PostprocessTab(ttk.Frame):
         if not self.chains:
             messagebox.showinfo("Постпроцессинг", "Цепочки пусты — нечего сохранять.")
             return
-        from tkinter import simpledialog
         name = simpledialog.askstring("Шаблон", "Имя шаблона (латиницей):", parent=self)
         if not name:
             return
@@ -559,8 +558,8 @@ class PostprocessTab(ttk.Frame):
         if self.ct is None:
             return
         z = int(self.slice_idx.get())
-        w, l = WINDOW_PRESETS.get(self.win_combo.get(), (400, 40))
-        vmin, vmax = l - w / 2, l + w / 2
+        w, lev = WINDOW_PRESETS.get(self.win_combo.get(), (400, 40))
+        vmin, vmax = lev - w / 2, lev + w / 2
 
         for key, ax, data, title in (
                 ("gt", self.ax_gt,

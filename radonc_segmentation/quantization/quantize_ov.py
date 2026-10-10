@@ -75,7 +75,7 @@ def resolve_source(source):
 
 
 def build_calibration(n_volumes, patches_per_volume, seed=42):
-    """
+    r"""
     Патчи калибровки из реальных КТ пациентов (legacy-преобработка,
     как в infer_ov.py). Кэш: models\_calibration.npz.
     """
@@ -191,7 +191,6 @@ def quantize_one(xml_path, out_dir, mode, calib_patches, weights_bits=4, act_bit
         # Полная PTQ с 4-битными весами: недокументированный путь через
         # QuantizationParameters.num_bits — NNCF не проверяет и не запрещает.
         from nncf.quantization.advanced_parameters import (
-            AdvancedQuantizationParameters,
             QuantizationParameters,
         )
         adv = nncf.AdvancedQuantizationParameters(
@@ -245,7 +244,7 @@ def quantize_one(xml_path, out_dir, mode, calib_patches, weights_bits=4, act_bit
 
 def main():
     p = argparse.ArgumentParser(description="Квантизация OpenVINO-моделей (INT8/INT4)")
-    p.add_argument("--source", default=None, help="Папка модели-источника (models\<имя>)")
+    p.add_argument("--source", default=None, help=r"Папка модели-источника (models\<имя>)")
     p.add_argument("--name", default=None, help="Имя новой модели (подпапка в models)")
     p.add_argument("--mode", default="int8",
                    choices=["int8", "int4", "int8_weights", "int4_weights"])

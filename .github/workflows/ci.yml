@@ -1,0 +1,40 @@
+# ============================================================
+# CI: линтер + юнит-тесты чистых функций ядра
+# ------------------------------------------------------------
+# Намеренно БЕЗ GUI-smoke: на чистом клоне нет settings.ini
+# (в .gitignore), init_config триггерит автоподстройку железа,
+# и smoke-тест упирается в модальный QMessageBox (в offscreen
+# некому нажать «ОК»). GUI проверяется локально:
+#   python -m pytest tests  (в окружении nnunet_env)
+# Зависимости — лёгкий набор для юнит-тестов, без torch/nncf.
+# ============================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-unit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"   # та же версия, что в setup_env.py
+
+      - name: Линтер (ruff)
+        run: |
+          pip install ruff
+          ruff check .
+
+      - name: Установка лёгких зависимостей для юнит-тестов
+        run: |
+          pip install numpy scipy SimpleITK openvino tqdm pytest
+          pip install -e . --no-deps
+
+      - name: Юнит-тесты
+        run: python -m pytest tests/test_core_functions.py -q --tb=short

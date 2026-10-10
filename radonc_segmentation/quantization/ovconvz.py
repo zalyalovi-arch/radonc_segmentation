@@ -2,8 +2,6 @@ import torch
 import os
 import json
 import importlib
-import onnx
-import numpy as np
 import subprocess
 import sys
 import gc

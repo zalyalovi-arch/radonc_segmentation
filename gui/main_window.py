@@ -15,16 +15,16 @@ import subprocess
 import sys
 import threading
 
-from PySide6.QtCore import QFile, Qt, QThread, Signal
+from PySide6.QtCore import QFile, QThread, Signal
 from PySide6.QtGui import QTextCursor
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QLabel,
+from PySide6.QtWidgets import (QComboBox, QFileDialog, QLabel,
                                QLineEdit, QMainWindow, QMessageBox, QPushButton,
                                QWidget)
 
-from radonc_segmentation import config  # noqa: E402
-from gui import PROJECT_ROOT, PKG_DIR, UI_DIR, child_env  # noqa: E402
-from gui.workers import JobWorker  # noqa: E402
+from radonc_segmentation import config
+from gui import PROJECT_ROOT, PKG_DIR, UI_DIR, child_env
+from gui.workers import JobWorker
 
 _IS_FROZEN = getattr(sys, "frozen", False)
 if _IS_FROZEN:

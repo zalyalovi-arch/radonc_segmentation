@@ -260,7 +260,7 @@ def main():
         bin_path=quantized_model_path.replace('.xml', '.bin')
     )
 
-    print(f"Квантизованная модель сохранена:")
+    print("Квантизованная модель сохранена:")
     print(f"XML: {quantized_model_path}")
     print(f"BIN: {quantized_model_path.replace('.xml', '.bin')}")
     print("Квантизация завершена!")

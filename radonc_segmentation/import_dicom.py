@@ -51,7 +51,7 @@ def check_modality(dcm_path):
             print(f"ВНИМАНИЕ: Modality = {modality} (ожидался CT). "
                   f"Продолжаю, но проверьте, ту ли папку вы импортируете.")
         else:
-            print(f"Modality: CT (OK)")
+            print("Modality: CT (OK)")
     except Exception as e:
         print(f"(не удалось прочитать DICOM-заголовок: {e})")
 

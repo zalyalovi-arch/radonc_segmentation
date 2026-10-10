@@ -21,9 +21,9 @@ import time
 import numpy as np
 import SimpleITK as sitk
 
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from radonc_segmentation import config
+
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 MAP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ts_to_labels.json")
 

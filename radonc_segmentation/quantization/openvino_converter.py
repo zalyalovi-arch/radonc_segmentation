@@ -4,12 +4,8 @@ import json
 import importlib
 import onnx
 import openvino as ov
-import numpy as np
 import psutil
 import gc
-from openvino import Core
-from openvino.tools import ovc
-from openvino.runtime import serialize
 import onnxruntime as ort
 import subprocess
 import sys
@@ -272,9 +268,9 @@ try:
 
     # Финальная проверка результата компиляции
     if compiled_model is not None:
-        print(f"\n🎉 Проверка OpenVINO модели завершена успешно!")
+        print("\n🎉 Проверка OpenVINO модели завершена успешно!")
         print(f"   Устройство для инференса: {used_device}")
-        print(f"   Модель готова к использованию в основном пайплайне.")
+        print("   Модель готова к использованию в основном пайплайне.")
     else:
         raise RuntimeError("Не удалось скомпилировать модель ни на одном доступном устройстве")
 

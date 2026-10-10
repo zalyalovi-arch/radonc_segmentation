@@ -18,7 +18,6 @@
 import argparse
 import csv
 import os
-import sys
 import time
 
 import numpy as np
@@ -60,7 +59,7 @@ def parse_args():
     p.add_argument("--no-crop", action="store_true", help="Отключить кроп воздуха")
     p.add_argument("--no-async", action="store_true", help="Синхронный инференс (как slwinensembz.py)")
     p.add_argument("--folds", default=",".join(str(i) for i in config.DEFAULT_FOLDS),
-                   help=f"Фолды через запятую, напр. 0,1,2,3,4 (по умолчанию из settings.ini)")
+                   help="Фолды через запятую, напр. 0,1,2,3,4 (по умолчанию из settings.ini)")
     p.add_argument("--n-async", type=int, default=config.N_ASYNC_REQUESTS,
                    help=f"Число параллельных infer-запросов (по умолч. {config.N_ASYNC_REQUESTS})")
     p.add_argument("--hint", default=config.OV_PERFORMANCE_HINT, choices=["LATENCY", "THROUGHPUT", "none"],
