@@ -1,0 +1,216 @@
+# RadOnc Segmentation
+
+GUI-пайплайн автоматической оконтуринга органов риска головы и шеи по КТ:
+импорт DICOM → конвертация в NIfTI → инференс нейросети (OpenVINO INT8, CPU) →
+экспорт RTSTRUCT для планирующей системы. Плюс инструменты постпроцессинга
+масок, квантизации и сравнения метрик (Dice, HD95).
+
+Сегментация выполняется **ансамблем из 5 фолдов** nnUNet-модели, конвертированной
+в OpenVINO INT8, — целиком на **CPU, без видеокарты**: полный том ~18-20 минут
+на 4-8 логических ядрах, кроп воздуха ускоряет его в 1.5-2 раза.
+31 структура: головной/спинной мозг, нервы, сонные артерии, глотка, гортань,
+щитовидная железа, слюнные железы, околоушные железы, мандибула и др.
+(полный список — `scripts/config.py`, словарь `LABELS`).
+
+| Вкладка | Что делает |
+|---|---|
+| **Работа** | импорт DICOM пациента, запуск инференса, экспорт RTSTRUCT, watch-папка |
+| **Постпроцессинг** | правка масок per-структурными методами (closing, dilate/erode, keep-largest…), Dice/HD95 против GT, шаблоны методов |
+| **Квантизация** | список моделей, бенчмарк точности/скорости двух моделей |
+| **Настройки** | устройство, потоки, пути, модель, значения по умолчанию |
+
+Скриншоты — в папке [`_screenshots/`](_screenshots/).
+
+## Быстрый старт (Windows)
+
+### Вариант 1: готовый exe (без Python)
+
+1. Скачайте `nnunet_gui.exe` со страницы
+   [Releases](https://github.com/zalyalovi-arch/radonc_segmentation/releases)
+   и положите его в папку проекта (рядом с `settings.ini` и `scripts\`).
+2. Скопируйте `settings.example.ini` → `settings.ini`.
+3. Запустите `nnunet_gui.exe`.
+
+exe самодостаточен (PySide6 внутри), но скрипты пайплайна (инференс,
+импорт, экспорт) он запускает **python'ом окружения** — то есть для
+полноценной работы всё равно нужен Вариант 2. Если python не найден —
+GUI откроется, но при запуске инференса сообщит, чего не хватает.
+
+### Вариант 2: полная установка через setup_env.py (рекомендуется)
+
+Нужен только любой установленный Python (3.10-3.12) — всё остальное
+скрипт сделает сам:
+
+```bat
+git clone https://github.com/zalyalovi-arch/radonc_segmentation.git
+cd radonc_segmentation
+copy settings.example.ini settings.ini
+python scripts\setup_env.py
+```
+
+`setup_env.py`:
+1. Найдёт conda (Miniconda/Anaconda) в типовых местах; если нет — предложит
+   скачать и установить Miniconda автоматически (спросит подтверждение).
+2. Создаст окружение `nnunet_env` (Python 3.10).
+3. Поставит зависимости из `requirements.txt` (обычный pip, ~10-20 минут).
+4. Проверит окружение и подстроит настройки под железо (потоки, накопитель).
+
+Повторный запуск безопасен — готовые шаги пропускаются.
+
+> **Автоматизировать не удалось:** создать окружение без conda (venv)
+> нельзя — `setup_env.py` опирается на conda и при её отсутствии
+> предлагает автоматическую установку Miniconda (требует подтверждения
+> в консоли — это единственный интерактивный шаг).
+
+### Запуск
+
+```bat
+run_gui.bat                     :: GUI из окружения (все вкладки)
+nnunet_gui.exe                  :: exe (если собрали/скачали)
+designer.bat                    :: Qt Designer для правки раскладок
+python tests\smoke_test.py      :: offscreen-проверка GUI + скриншоты
+```
+
+## Обработка пациента
+
+1. Вкладка **Работа** → укажите папку с экспортированной КТ-серией (DICOM) →
+   **Импорт** (создаст `patients\<модель>\<ID>\` с NIfTI-томом).
+2. **Запустить инференс** — результат: `patients\<модель>\<ID>\seg_nnunet\<ID>.nii.gz`.
+3. **Экспорт RTSTRUCT** — готовый файл для планирующей системы рядом с томом.
+
+Скриптом целиком:
+
+```bat
+python scripts\pipeline.py P110        :: import → infer → RTSTRUCT
+```
+
+Тот же пайплайн доступен по watch-папке: кладёте подпапку с DICOM в
+`inbox\` — обработается автоматически (кнопки watch на вкладке «Работа»).
+
+## Модель
+
+Веса **не публикуются** в репозитории — папка `models\` пустая
+(см. `models/example.txt`). Ожидаемая структура:
+
+```
+models\
+└── headandneck\              ← MODEL_NAME (settings.ini)
+    └── int8\                 ← MODEL (settings.ini)
+        ├── fold_0\quantized_model.xml
+        ├── …
+        └── fold_4\quantized_model.xml
+```
+
+После того как положили модель — GUI подхватит её сама (вкладка
+«Настройки»), или проверьте `MODEL`/`MODEL_NAME` в `settings.ini`.
+
+### Обучение своей модели (не автоматизировано)
+
+Обучение nnUNet и подготовка весов — ручной этап, автоматизации нет.
+Требуется GPU и знания nnUNet v2. Состав шагов:
+
+1. Обучить nnUNet v2 (5 фолдов) на своём датасете — стандартный процесс
+   [nnUNet documentation](https://github.com/MIC-DKFZ/nnUNet).
+2. Экспорт PyTorch → ONNX → OpenVINO IR:
+   `python scripts\quantization\openvino_converter.py` (пакеты из
+   `requirements-quantization.txt`).
+3. INT8-квантизация (NNCF): `python scripts\quantization\quantize_ov.py`.
+4. Разложить веса по фолдам в `models\<MODEL_NAME>\<MODEL>\fold_*\`.
+
+Пакеты для этого: `python -m pip install -r requirements-quantization.txt
+--extra-index-url https://download.pytorch.org/whl/cpu`.
+
+## Структура проекта
+
+```
+├── run_gui.bat                ← запуск GUI из окружения
+├── build.bat                  ← пересборка nnunet_gui.exe (после правок кода)
+├── designer.bat               ← Qt Designer на gui\ui
+├── nnunet_gui.exe             ← готовый exe (Releases)
+├── nnunet_gui_pyside.spec     ← рецепт сборки exe (PyInstaller)
+├── settings.example.ini       ← шаблон настроек (копируйте в settings.ini)
+├── requirements.txt           ← зависимости пайплайна и GUI
+├── requirements-quantization.txt ← пакеты для обучения своей модели
+├── models\                    ← СЮДА кладутся веса (пустая, см. example.txt)
+├── patients\                  ← данные пациентов (создаётся при импорте)
+├── gui\                       ← код GUI (PySide6)
+│   ├── main.py                ← точка входа (+ _gui_error.log при краше exe)
+│   ├── main_window.py         ← логика главного окна
+│   ├── postprocess_tab.py     ← логика вкладки «Постпроцессинг»
+│   ├── workers.py             ← фоновые задачи (QThread + сигналы)
+│   ├── mpl_canvas.py          ← matplotlib-канвас (колесо = срезы)
+│   └── ui\*.ui                ← раскладки окон (правятся в Qt Designer)
+├── scripts\                   ← пайплайн и инструменты
+│   ├── pipeline.py            ← весь пайплайн одной командой
+│   ├── import_dicom.py        ← DICOM → NIfTI (patients\<ID>\nnunet_input\)
+│   ├── infer_ov.py            ← инференс OpenVINO (ансамбль 5 фолдов)
+│   ├── export_rtstruct.py     ← копирование RTSTRUCT к исходному DICOM
+│   ├── make_rtstruct_hn.py    ← сборка RTSTRUCT из маски (rt-utils)
+│   ├── postprocess_core.py    ← методы постпроцессинга (использует GUI)
+│   ├── compare_dice.py        ← метрики Dice/HD95 двух масок
+│   ├── watch_folder.py        ← автообработка inbox-папки
+│   ├── dicom_to_nifti.py      ← конвертация DICOM→NIfTI (отдельный вызов)
+│   ├── validation_to_nifti.py ← подготовка валидационных кейсов
+│   ├── config.py              ← настройки по умолчанию + settings.ini
+│   ├── env_check.py           ← проверка окружения (используется при старте)
+│   ├── setup_env.py           ← настройка нового компьютера одной командой
+│   ├── check_devices.py       ← список устройств OpenVINO
+│   ├── aligned\               ← вариант инференса, выровненный по обучению
+│   ├── quantization\          ← экспорт/квантизация своей модели
+│   ├── external_baselines\    ← сравнение с TotalSegmentator (справочно)
+│   ├── postprocess_experiment.py ← исследование постпроцессинга (CLI)
+│   ├── postprocess_viewer.py  ← старый tkinter-вьюер (справочник)
+│   └── nnunet_gui.py          ← старый tkinter-GUI (справочник)
+└── tests\smoke_test.py        ← offscreen-проверка GUI
+```
+
+## Настройка
+
+Все настройки — в `settings.ini` (создаётся из `settings.example.ini`)
+или на вкладке «Настройки» GUI. Ключевое:
+
+| Секция | Ключ | Смысл |
+|---|---|---|
+| `[device]` | `DEVICE` | `cpu` (основной вариант) или `gpu` |
+| `[device]` | `NUM_THREADS` | логические ядра; подбирается автоматически при первом запуске |
+| `[inference]` | `VARIANT` | `legacy` (дефолт) или `aligned` — варианты преобработки |
+| `[inference]` | `CROP_AIR` | кроп воздуха — ускоряет инференс в 1.5-2 раза |
+| `[inference]` | `ACCUMULATOR` | `disk` (надёжно) или `ram` (быстрее, нужно ~7 ГБ ОЗУ) |
+| `[model]` | `MODEL_NAME`, `MODEL` | подпапка модели: `models\<MODEL_NAME>\<MODEL>` |
+| `[paths]` | `PATIENTS_ROOT` и др. | пусто = подпапки проекта (переносимо) |
+
+Относительные/пустые пути считаются от папки проекта — проект можно
+копировать между компьютерами. При первом запуске на новом железе
+настройки (потоки, накопитель, python) подстраиваются автоматически,
+отпечаток машины запоминается в `settings.ini`.
+
+## Сборка exe (не обязательна)
+
+Готовый exe — в [Releases](https://github.com/zalyalovi-arch/radonc_segmentation/releases).
+Собрать самому (после правок python-кода):
+
+```bat
+build.bat    :: ~4-5 минут; dist\nnunet_gui.exe → копия в корень
+```
+
+В exe упакованы PySide6, numpy/scipy, SimpleITK и скрипты. Тяжёлые
+ML-пакеты (torch, nnunetv2, matplotlib) исключены: инференс выполняет
+python окружения через subprocess. Из-за этого в exe недоступна вкладка
+«Постпроцессинг» (matplotlib) — используйте `run_gui.bat`.
+
+Правки раскладок `gui\ui\*.ui` подхватываются перезапуском GUI без
+пересборки (`.ui` читаются при старте, не компилируются).
+
+## Тесты
+
+```bat
+python tests\smoke_test.py          :: GUI собирается, вкладки работают
+python test_main_window.py          :: standalone-тест главного окна (offscreen)
+python scripts\env_check.py         :: зависимости против requirements.txt
+python scripts\check_devices.py     :: устройства OpenVINO
+```
+
+## Лицензия
+
+[MIT](LICENSE). Веса моделей и данные пациентов не публикуются
+(медицинская приватность и лицензии исходного датасета).

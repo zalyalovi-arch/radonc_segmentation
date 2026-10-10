@@ -1,0 +1,31 @@
+Сюда должна лежать модель.
+
+Ожидаемая структура (models\<анатомия>\<квантизация>\<фолды>):
+
+models\
+└── headandneck\          ← анатомическая модель (MODEL_NAME в settings.ini)
+    └── int8\             ← квантизация (MODEL в settings.ini)
+        ├── fold_0\
+        │   └── quantized_model.xml   ← OpenVINO IR (INT8)
+        ├── fold_1\
+        │   └── quantized_model.xml
+        ├── fold_2\
+        │   └── quantized_model.xml
+        ├── fold_3\
+        │   └── quantized_model.xml
+        └── fold_4\
+            └── quantized_model.xml
+
+Можно положить и одиночную модель без фолдов (один .xml прямо в папке
+квантизации) — тогда ансамбль не используется (folds=[0]).
+
+Где взять модель:
+  * свои веса — см. README, раздел «Обучение своей модели»
+    (scripts/quantization/, requirements-quantization.txt);
+  * веса обучаются на DATASET с 31 структурами головы и шеи
+    (нумерация меток — scripts/config.py, словарь LABELS).
+
+Веса НЕ публикуются в репозитории (лицензии исходного датасета).
+После того как положите модель сюда, программа подхватит её сама:
+запустите GUI и выберите модель на вкладке «Настройки» (или проверьте,
+что MODEL/MODEL_NAME в settings.ini указывают на нужную подпапку).

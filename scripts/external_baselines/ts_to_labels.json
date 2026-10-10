@@ -1,0 +1,35 @@
+{
+  "_comment": "Маппинг структур TotalSegmentator v2 -> наши метки (config.LABELS). 'sources' перечисляет кандидатов ПО ПОРЯДКУ приоритета из разных тасков TS; конвертер берёт первый СУЩЕСТВУЮЩИЙ файл в выходной папке таска. 'notes' — несоответствия определений органов, учитывать при интерпретации.",
+  "_notes": {
+    "A_Carotid": "Наш 'A_Carotid' — общий/внутренний сегмент сонной по GT; TS total даёт common_carotid_artery (у TS заметно короче — см. гистограммы). Альтернатива internal_carotid_artery — в headneck_bones_vessels.",
+    "PharynxConst": "TS headneck_muscles даёт ОТДЕЛЬНЫЕ superior/middle/inferior_pharyngeal_constrictor — один-к-одному с нашими S/M/I.",
+    "not_covered": "Cochlea, TMJoint, BrachialPlexus, SpinalCanal, Larynx (орган), Lips в TS отсутствуют — вне сравнения."
+  },
+  "tasks": ["total", "head_glands_cavities", "headneck_muscles", "craniofacial_structures", "headneck_bones_vessels"],
+  "mapping": {
+    "4":  {"organ": "SpinalCord",       "sources": ["spinal_cord"]},
+    "16": {"organ": "Brain",            "sources": ["brain"]},
+    "7":  {"organ": "Thyroid",          "sources": ["thyroid_gland"]},
+    "5":  {"organ": "Trachea",          "sources": ["trachea"]},
+    "6":  {"organ": "Esophagus",        "sources": ["esophagus"]},
+    "8":  {"organ": "A_Carotid_R",      "sources": ["common_carotid_artery_right", "internal_carotid_artery_right"]},
+    "9":  {"organ": "A_Carotid_L",      "sources": ["common_carotid_artery_left", "internal_carotid_artery_left"]},
+    "24": {"organ": "Eye_R",            "sources": ["eye_right"]},
+    "26": {"organ": "Eye_L",            "sources": ["eye_left"]},
+    "25": {"organ": "Lens_R",           "sources": ["eye_lens_right"]},
+    "27": {"organ": "Lens_L",           "sources": ["eye_lens_left"]},
+    "14": {"organ": "OpticNerve_R",     "sources": ["optic_nerve_right"]},
+    "15": {"organ": "OpticNerve_L",     "sources": ["optic_nerve_left"]},
+    "19": {"organ": "Parotid_R",        "sources": ["parotid_gland_right"]},
+    "20": {"organ": "Parotid_L",        "sources": ["parotid_gland_left"]},
+    "17": {"organ": "Submandibular_R",  "sources": ["submandibular_gland_right"]},
+    "18": {"organ": "Submandibular_L",  "sources": ["submandibular_gland_left"]},
+    "23": {"organ": "Mandible",         "sources": ["mandible", "jaw_bone"]},
+    "11": {"organ": "PharynxConst_I",   "sources": ["inferior_pharyngeal_constrictor"], "group": "PharynxConst"},
+    "12": {"organ": "PharynxConst_M",   "sources": ["middle_pharyngeal_constrictor"], "group": "PharynxConst"},
+    "13": {"organ": "PharynxConst_S",   "sources": ["superior_pharyngeal_constrictor"], "group": "PharynxConst"}
+  },
+  "groups": {
+    "PharynxConst": [11, 12, 13]
+  }
+}

@@ -1,0 +1,162 @@
+# ============================================================
+# setup_env.py — настройка НОВОГО компьютера одной командой
+# ------------------------------------------------------------
+# Запускается ЛЮБЫМ python (только стандартная библиотека):
+#   python "C:\путь\к\проекту\scripts\setup_env.py"
+#
+# Что делает:
+#   1. Ищет conda (Miniconda/Anaconda) в типовых местах; если нет —
+#      предлагает скачать и установить Miniconda автоматически.
+#   2. Создаёт окружение nnunet_env (Python 3.10), если его нет.
+#   3. Ставит зависимости из requirements.txt (обычный pip, пины
+#      совместимы: tensorflow в requirements больше не входит).
+#   4. Проверяет окружение (env_check.py) и подстраивает настройки
+#      под железо этого компьютера (config.autotune_hardware).
+#
+# Повторный запуск безопасен: шаги пропускаются, если уже сделаны.
+# ============================================================
+import os
+import subprocess
+import sys
+import urllib.request
+
+SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(SCRIPTS_DIR)
+REQ_PATH = os.path.join(PROJECT_DIR, "requirements.txt")
+
+ENV_NAME = "nnunet_env"
+PYTHON_VERSION = "3.10"
+MINICONDA_URL = "https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
+
+CONDA_BASES = [
+    os.path.join(os.environ.get("LOCALAPPDATA", ""), "miniconda3"),
+    os.path.join(os.path.expanduser("~"), "miniconda3"),
+    os.path.join(os.environ.get("LOCALAPPDATA", ""), "anaconda3"),
+    os.path.join(os.path.expanduser("~"), "anaconda3"),
+    r"C:\ProgramData\miniconda3",
+    r"C:\ProgramData\anaconda3",
+    r"C:\miniconda3",
+    r"C:\anaconda3",
+]
+
+
+def find_conda_exe():
+    """conda.exe из типовых установок или PATH."""
+    candidates = [os.path.join(b, "Scripts", "conda.exe") for b in CONDA_BASES]
+    candidates.append(os.path.join(os.path.dirname(sys.executable), "Scripts", "conda.exe"))
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return c
+    try:
+        r = subprocess.run(["where", "conda"], capture_output=True, text=True, timeout=15)
+        for line in (r.stdout or "").splitlines():
+            line = line.strip()
+            if line.lower().endswith("conda.exe") and os.path.isfile(line):
+                return line
+    except Exception:
+        pass
+    return None
+
+
+def env_python(conda_exe):
+    """Путь к python окружения ENV_NAME (проверяем, что файл существует)."""
+    base = os.path.dirname(os.path.dirname(conda_exe))  # ...\<conda root>
+    p = os.path.join(base, "envs", ENV_NAME, "python.exe")
+    return p if os.path.isfile(p) else None
+
+
+def run(cmd, **kw):
+    print("  $ " + " ".join(cmd))
+    return subprocess.run(cmd, **kw)
+
+
+def install_miniconda():
+    print("\n[1/4] conda не найден. Установить Miniconda автоматически?")
+    print(f"      (источник: {MINICONDA_URL})")
+    answer = input("Введите Д для установки или Enter для выхода: ").strip().lower()
+    if answer not in ("д", "d", "да", "yes", "y"):
+        print("Установите Miniconda вручную с https://docs.conda.io/en/latest/miniconda.html "
+              "и запустите setup_env.py снова.")
+        sys.exit(1)
+    installer = os.path.join(os.environ.get("TEMP", os.path.expanduser("~")), "Miniconda3_setup.exe")
+    print(f"Скачиваю: {installer} ...")
+    urllib.request.urlretrieve(MINICONDA_URL, installer)
+    target = os.path.join(os.path.expanduser("~"), "miniconda3")
+    print(f"Тихая установка в {target} (несколько минут)...")
+    r = run([installer, "/InstallationType=JustMe", "/AddToPath=0", "/RegisterPython=0",
+             "/S", f"/D={target}"])
+    if r.returncode != 0 or not os.path.isfile(os.path.join(target, "Scripts", "conda.exe")):
+        print("[ОШИБКА] Установка Miniconda не удалась, установите вручную.")
+        sys.exit(1)
+    return os.path.join(target, "Scripts", "conda.exe")
+
+
+def main():
+    print(f"Проект: {PROJECT_DIR}")
+    print(f"requirements.txt: {REQ_PATH}")
+
+    # --- 1. conda ---
+    print("\n[1/4] Ищу conda...")
+    conda = find_conda_exe()
+    if conda:
+        print(f"  найден: {conda}")
+    else:
+        conda = install_miniconda()
+        print(f"  установлен: {conda}")
+
+    # --- 2. окружение ---
+    print(f"\n[2/4] Проверяю окружение {ENV_NAME} (Python {PYTHON_VERSION})...")
+    py = env_python(conda)
+    if py:
+        print(f"  уже существует: {py}")
+    else:
+        print(f"  создаю окружение {ENV_NAME} с Python {PYTHON_VERSION}...")
+        r = run([conda, "create", "-n", ENV_NAME, f"python={PYTHON_VERSION}", "-y"])
+        if r.returncode != 0:
+            print("[ОШИБКА] Не удалось создать окружение (см. вывод выше).")
+            sys.exit(1)
+        py = env_python(conda)
+        if not py:
+            print("[ОШИБКА] Окружение создано, но python.exe не найден.")
+            sys.exit(1)
+        print(f"  создано: {py}")
+
+    # --- 3. зависимости ---
+    print("\n[3/4] Проверяю зависимости (requirements.txt)...")
+    chk = run([py, os.path.join(SCRIPTS_DIR, "env_check.py")])
+    if chk.returncode == 0:
+        print("  все пакеты уже установлены — пропускаю установку.")
+    else:
+        print("  ставлю пакеты (обычный pip, пины requirements.txt совместимы).\n"
+              "  Это долго (10-20 минут, ~2 ГБ загрузок)...")
+        r = run([py, "-m", "pip", "install", "-r", REQ_PATH])
+        if r.returncode != 0:
+            print("[ОШИБКА] pip завершился с ошибкой (см. вывод выше).")
+            sys.exit(1)
+        chk = run([py, os.path.join(SCRIPTS_DIR, "env_check.py")])
+        if chk.returncode != 0:
+            print("[ВНИМАНИЕ] env_check всё ещё находит проблемы — проверьте вывод выше.")
+
+    # --- 4. настройки под железо ---
+    print("\n[4/4] Подстраиваю настройки под железо этого компьютера...")
+    code = ("import sys; sys.path.insert(0, r'" + SCRIPTS_DIR + "'); "
+            "import config; config.autotune_hardware(force=True); "
+            "print('DEVICE=%s NUM_THREADS=%s ACCUMULATOR=%s' % "
+            "(config.DEVICE, config.NUM_THREADS, config.ACCUMULATOR))")
+    run([py, "-c", code])
+
+    print("\n===== ГОТОВО =====")
+    print("Программа настроена. Дальше можно:")
+    print('  * запустить GUI:            nnunet_gui.exe (в корне проекта)')
+    print(f'  * проверить устройства:     "{py}" "{os.path.join(SCRIPTS_DIR, "check_devices.py")}"')
+    print(f'  * смоук-тест инференса:     "{py}" "{os.path.join(SCRIPTS_DIR, "infer_ov.py")}" P110 --folds 0')
+    print('  * обработать пациента:      run_pipeline.bat P110')
+    print("Python окружения (на случай ручной настройки): " + py)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nПрервано пользователем.")
+        sys.exit(1)

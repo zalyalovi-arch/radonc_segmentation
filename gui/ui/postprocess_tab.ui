@@ -1,0 +1,489 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PostprocessTab</class>
+ <widget class="QWidget" name="PostprocessTab">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1180</width>
+    <height>560</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="layRoot">
+   <property name="leftMargin">
+    <number>4</number>
+   </property>
+   <property name="topMargin">
+    <number>4</number>
+   </property>
+   <property name="rightMargin">
+    <number>4</number>
+   </property>
+   <property name="bottomMargin">
+    <number>4</number>
+   </property>
+   <item>
+    <layout class="QHBoxLayout" name="barCase">
+     <item>
+      <widget class="QLabel" name="lblCase">
+       <property name="text">
+        <string>Кейс:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="cmbCases">
+       <property name="minimumSize">
+        <size>
+         <width>340</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="sizeAdjustPolicy">
+        <enum>QComboBox::AdjustToContents</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnRefreshCases">
+       <property name="text">
+        <string>Обновить список</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnLoadCase">
+       <property name="text">
+        <string>Загрузить</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="lblCaseInfo">
+       <property name="styleSheet">
+        <string notr="true">color: gray</string>
+       </property>
+       <property name="text">
+        <string>кейс не загружен</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="spacerCase">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupTemplates">
+     <property name="title">
+      <string>Шаблоны (JSON, применяются целиком к инференсу)</string>
+     </property>
+     <layout class="QHBoxLayout" name="layTemplates">
+      <item>
+       <widget class="QLabel" name="lblTplFile">
+        <property name="text">
+         <string>Файл:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="cmbTemplates">
+        <property name="minimumSize">
+         <size>
+          <width>220</width>
+          <height>0</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnApplyTemplate">
+        <property name="text">
+         <string>Применить шаблон</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnBatchApply">
+        <property name="text">
+         <string>Применить ко всем валид. кейсам</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnSaveTemplate">
+        <property name="text">
+         <string>Сохранить как...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnRefreshTemplates">
+        <property name="text">
+         <string>Обновить список</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="spacerTemplates">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QSplitter" name="splitterView">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QGroupBox" name="groupView">
+      <property name="title">
+       <string>КТ + сегментация (слева GT / справа инференс + постпроцессинг)</string>
+      </property>
+      <layout class="QVBoxLayout" name="layView">
+       <item>
+        <layout class="QHBoxLayout" name="barView">
+         <item>
+          <widget class="QLabel" name="lblSlice">
+           <property name="text">
+            <string>Срез Z:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSlider" name="sliderSlice">
+           <property name="maximum">
+            <number>10</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="tickPosition">
+            <enum>QSlider::TicksBelow</enum>
+           </property>
+           <property name="tickInterval">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="lblWindow">
+           <property name="text">
+            <string>Окно:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="cmbWindow">
+           <property name="minimumSize">
+            <size>
+             <width>130</width>
+             <height>0</height>
+            </size>
+           </property>
+           <item>
+            <property name="text">
+             <string>мягкая ткань</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>кость</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>лёгкие</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btnResetZoom">
+           <property name="text">
+            <string>Сброс зума</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="MplCanvas" name="mplCanvas"/>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="sidePanel">
+      <property name="minimumSize">
+       <size>
+        <width>430</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>430</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <layout class="QVBoxLayout" name="laySide">
+       <item>
+        <widget class="QGroupBox" name="groupOrgans">
+         <property name="title">
+          <string>Органы (выберите для постпроцессинга)</string>
+         </property>
+         <layout class="QVBoxLayout" name="layOrgans">
+          <item>
+           <widget class="QTreeWidget" name="organTree">
+            <property name="columnCount">
+             <number>3</number>
+            </property>
+            <column>
+             <property name="text">
+              <string>Орган</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Dice</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>HD95, мм</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupMethod">
+         <property name="title">
+          <string>Постпроцессинг выбранного органа</string>
+         </property>
+         <layout class="QVBoxLayout" name="layMethod">
+          <item>
+           <layout class="QHBoxLayout" name="barMethod">
+            <item>
+             <widget class="QLabel" name="lblMethod">
+              <property name="text">
+               <string>Метод:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="cmbMethod">
+              <property name="minimumSize">
+               <size>
+                <width>130</width>
+                <height>0</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnMethodHelp">
+              <property name="maximumSize">
+               <size>
+                <width>28</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>?</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerMethod">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="barParam">
+            <item>
+             <widget class="QLabel" name="lblParam">
+              <property name="text">
+               <string>Параметр:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="spinParam">
+              <property name="maximumSize">
+               <size>
+                <width>90</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="decimals">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <double>8.000000000000000</double>
+              </property>
+              <property name="value">
+               <double>3.000000000000000</double>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerParam">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="barMethodBtns">
+            <item>
+             <widget class="QPushButton" name="btnApply">
+              <property name="text">
+               <string>Применить</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnUndo">
+              <property name="text">
+               <string>Отменить</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnResetAll">
+              <property name="text">
+               <string>Сброс</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerMethodBtns">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblMetrics">
+            <property name="styleSheet">
+             <string notr="true">font-weight: bold</string>
+            </property>
+            <property name="text">
+             <string>Метрики: загрузите кейс с GT</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblChain">
+            <property name="styleSheet">
+             <string notr="true">color: gray</string>
+            </property>
+            <property name="text">
+             <string>цепочка: —</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="spacerMethodVert">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="lblHint">
+         <property name="styleSheet">
+          <string notr="true">color: gray</string>
+         </property>
+         <property name="text">
+          <string>Колесо мыши — листать срезы, Ctrl+колесо — зум, «Сброс зума» — вернуть.
+Выберите орган → метод → «Применить». Методы цепочкой: применяйте
+последовательно; «Отменить» убирает последний метод цепочки,
+«Сброс» — всю цепочку органа. Шаблон проверяйте на 5-10 внешних
+случаях до включения в пайплайн.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MplCanvas</class>
+   <extends>QWidget</extends>
+   <header>gui.mpl_canvas</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

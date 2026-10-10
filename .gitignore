@@ -1,0 +1,44 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+*.egg
+
+# --- сборка exe (PyInstaller) ---
+build/
+dist/
+*.manifest
+nnunet_gui.exe
+
+# --- настройки с личными путями (шаблон: settings.example.ini) ---
+settings.ini
+
+# --- внутренние рабочие документы ---
+debug_list.md
+
+# --- данные (модели/пациенты не публикуются; example.txt остаётся) ---
+models/**/*
+!models/example.txt
+patients/**/*
+!patients/example.txt
+logs/
+inbox/
+validation/
+_gui_error.log
+
+# --- большие результаты, временные файлы ---
+*.nii
+*.nii.gz
+*.npy
+*.npz
+*.dcm
+screenshots_tmp/
+
+# --- IDE / ОС ---
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
