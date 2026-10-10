@@ -50,7 +50,7 @@ def normalize_patient_id(s):
     s = str(s).strip()
     if s.isdigit():
         return f"P{int(s):03d}"
-    if re.fullmatch(r"[Pp]\d{3}", s):
+    if re.fullmatch(r"[Pp]\d{3,}", s):
         return s.upper()
     return None
 

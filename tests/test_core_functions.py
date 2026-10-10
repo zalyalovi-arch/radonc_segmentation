@@ -151,9 +151,22 @@ def test_body_bbox_threshold_exclusive():
     ("мусор без оператора", "1.0", True),   # непонятная спека — не блокируем
     (">=1.0, <2.0", "1.5", True),           # список через запятую: всё должно пройти
     (">=1.0, <2.0", "2.5", False),
+    # реальные пины проекта, на которых ломаются самописные компараторы:
+    ("==2.8.0+cpu", "2.8.0+cpu", True),     # torch: локальный суффикс
+    (">=2.8.0", "2.8.0+cpu", True),         # суффикс не ломает порядок
+    ("==4.12.0.88", "4.12.0.88", True),     # opencv: четырёхсегментная версия
 ])
 def test_spec_ok_matrix(spec, installed, expected):
     assert _spec_ok(spec, installed) is expected
+
+
+def test_cmp_versions_four_segments_and_suffix():
+    from radonc_segmentation.env_check import _cmp_versions
+    assert _cmp_versions("4.12.0.88", "4.10.0.84") == 1
+    assert _cmp_versions("4.10.0.84", "4.12.0.88") == -1
+    assert _cmp_versions("4.12.0.88", "4.12.0.88") == 0
+    # локальный суффикс длиннее => «новее» (документированное поведение)
+    assert _cmp_versions("2.8.0+cpu", "2.8.0") == 1
 
 
 # ---------- normalize_patient_id: вход CLI ----------
@@ -164,7 +177,9 @@ def test_spec_ok_matrix(spec, installed, expected):
     ("P007", "P007"),
     ("p007", "P007"),
     ("  P110  ", "P110"),       # пробелы срезаются
-    ("P12", None),              # нужно ровно 3 цифры
+    ("P12", None),              # минимум 3 цифры
+    ("P1234", "P1234"),         # 1000-й пациент и дальше — валиден
+    ("1000", "P1000"),          # числовой ввод не обрезается до P100
     ("abc", None),
     ("", None),
 ])

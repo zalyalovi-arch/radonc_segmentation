@@ -97,7 +97,7 @@ def normalize_patient_id(s):
     s = str(s).strip()
     if s.isdigit():
         return f"P{int(s):03d}"
-    if len(s) == 4 and s.startswith("P") and s[1:].isdigit():
+    if s.startswith("P") and s[1:].isdigit():
         return s.upper()
     raise SystemExit(f"Некорректный ID пациента: {s!r}")
 

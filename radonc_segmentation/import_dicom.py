@@ -18,7 +18,7 @@ def get_next_patient_id(patients_root):
     existing = []
     if os.path.isdir(patients_root):
         for name in os.listdir(patients_root):
-            if name.startswith("P") and len(name) == 4 and name[1:].isdigit():
+            if name.startswith("P") and name[1:].isdigit():
                 existing.append(int(name[1:]))
     if not existing:
         return "P001"
@@ -57,21 +57,10 @@ def check_modality(dcm_path):
 
 
 def copy_dicom_folder(src_dicom_folder, dst_dicom_folder):
-    """
-    Copy all files from src_dicom_folder into dst_dicom_folder.
-    """
+    """Copy all files from src_dicom_folder into dst_dicom_folder."""
     if not os.path.isdir(src_dicom_folder):
         raise RuntimeError(f"Source DICOM folder does not exist: {src_dicom_folder}")
-    os.makedirs(dst_dicom_folder, exist_ok=True)
-
-    for root, dirs, files in os.walk(src_dicom_folder):
-        rel = os.path.relpath(root, src_dicom_folder)
-        dst_root = os.path.join(dst_dicom_folder, rel) if rel != "." else dst_dicom_folder
-        os.makedirs(dst_root, exist_ok=True)
-        for f in files:
-            src_f = os.path.join(root, f)
-            dst_f = os.path.join(dst_root, f)
-            shutil.copy2(src_f, dst_f)
+    shutil.copytree(src_dicom_folder, dst_dicom_folder, dirs_exist_ok=True)
 
 
 def import_dicom(src_dicom_folder):

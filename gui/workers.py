@@ -8,11 +8,13 @@
 # ============================================================
 import os
 import subprocess
+import sys
 import traceback
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-CREATE_NO_WINDOW = 0x08000000  # не мигать консольными окнами на Windows
+# не мигать консольными окнами на Windows; на POSIX creationflags игнорируются
+CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
 class JobWorker(QObject):

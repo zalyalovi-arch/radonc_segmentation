@@ -78,7 +78,7 @@ MODEL = "int8"                       # квантизация: подпапка 
 PATIENTS_ROOT = ""                   # -> <проект>\patients
 LOG_DIR = ""                         # -> <проект>\logs
 WATCH_DIR = ""                       # -> <проект>\inbox
-WATCH_POLL_SECONDS = 10
+WATCH_POLL_SECONDS = 360            # синхронно с settings.example.ini
 VALIDATION_ROOT = ""                 # -> <проект>\validation
 
 # папки по умолчанию для GUI (пусто = не подставлять)

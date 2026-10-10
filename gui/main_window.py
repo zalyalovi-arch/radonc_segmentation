@@ -36,7 +36,7 @@ if _IS_FROZEN:
         PYTHON_EXE = config.find_conda_python()
 else:
     PYTHON_EXE = sys.executable  # dev-запуск из окружения nnunet_env
-CREATE_NO_WINDOW = 0x08000000
+CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 # вкладка «Постпроцессинг» требует numpy/SimpleITK/matplotlib
 try:

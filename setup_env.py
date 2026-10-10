@@ -14,6 +14,7 @@
 #
 # Повторный запуск безопасен: шаги пропускаются, если уже сделаны.
 # ============================================================
+import hashlib
 import os
 import subprocess
 import sys
@@ -24,7 +25,14 @@ REQ_PATH = os.path.join(PROJECT_DIR, "requirements.txt")
 
 ENV_NAME = "nnunet_env"
 PYTHON_VERSION = "3.10"
-MINICONDA_URL = "https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
+
+# Зафиксированная сборка вместо latest + контроль SHA256 (supply-chain):
+# клиника ставит инструмент на офисный ПК, установщик проверяется ДО запуска.
+# Хеш снят с официального repo.anaconda.com на момент пина (2026-10-11);
+# при обновлении пина — скачать сборку и пересчитать.
+MINICONDA_URL = ("https://repo.anaconda.com/miniconda/"
+                 "Miniconda3-py310_26.7.1-1-Windows-x86_64.exe")
+MINICONDA_SHA256 = "1f0df3ddbb963e5bd2746be55bae774940da009f7948ca873cbbbc58683e197b"
 
 CONDA_BASES = [
     os.path.join(os.environ.get("LOCALAPPDATA", ""), "miniconda3"),
@@ -79,6 +87,20 @@ def install_miniconda():
     installer = os.path.join(os.environ.get("TEMP", os.path.expanduser("~")), "Miniconda3_setup.exe")
     print(f"Скачиваю: {installer} ...")
     urllib.request.urlretrieve(MINICONDA_URL, installer)
+    print("Проверяю SHA256 установщика ...")
+    h = hashlib.sha256()
+    with open(installer, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    if h.hexdigest().lower() != MINICONDA_SHA256:
+        print("[ОШИБКА] SHA256 скачанного установщика НЕ совпал с ожидаемым.")
+        print(f"  ожидалось: {MINICONDA_SHA256}")
+        print(f"  получено:  {h.hexdigest()}")
+        print("Файл повреждён или подменён — установка прервана. Скачайте установщик")
+        print(f"вручную: {MINICONDA_URL}")
+        print("и сверьте хеш со страницей Anaconda, затем повторите setup_env.py.")
+        sys.exit(1)
+    print("  SHA256 OK")
     target = os.path.join(os.path.expanduser("~"), "miniconda3")
     print(f"Тихая установка в {target} (несколько минут)...")
     r = run([installer, "/InstallationType=JustMe", "/AddToPath=0", "/RegisterPython=0",
