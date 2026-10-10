@@ -70,39 +70,8 @@ def main():
 
     # ========= EDIT LABEL MAP IF NEEDED =========
     # Integer labels in nnU-Net mask (check with np.unique)
-    label_map = {
-        "BrachialPlexus_R": 1,
-        "BrachialPlexus_L": 2,
-        "SpinalCanal": 3,
-        "SpinalCord": 4,
-        "Trachea": 5,
-        "Esophagus": 6,
-        "Thyroid": 7,
-        "A_Carotid_R": 8,
-        "A_Carotid_L": 9,
-        "Larynx": 10,
-        "PharynxConst_I": 11,
-        "PharynxConst_M": 12,
-        "PharynxConst_S": 13,
-        "OpticNerve_R": 14,
-        "OpticNerve_L": 15,
-        "Brain": 16,
-        "Submandibular_R": 17,
-        "Submandibular_L": 18,
-        "Parotid_R": 19,
-        "Parotid_L": 20,
-        "Lips": 21,
-        "Tongue": 22,
-        "Mandible": 23,
-        "Eye_R": 24,
-        "Lens_R": 25,
-        "Eye_L": 26,
-        "Lens_L": 27,
-        "TMJoint_R": 28,
-        "TMJoint_L": 29,
-        "Cochlea_R": 30,
-        "Cochlea_L": 31
-    }
+    # единый источник имён/номеров структур — config.LABELS (как в GUI и метриках)
+    label_map = config.LABELS
     # ============================================
 
     # Load CT
