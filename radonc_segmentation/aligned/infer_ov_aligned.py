@@ -37,6 +37,8 @@ env_check.ensure_ready()
 
 def load_norm_stats():
     """Глобальные статистики из fingerprint датасета; при недоступности — константы из config."""
+    if not config.DATASET_FINGERPRINT:
+        return config.CT_CLIP_LO, config.CT_CLIP_HI, config.CT_MEAN, config.CT_STD
     try:
         with open(config.DATASET_FINGERPRINT, "r", encoding="utf-8") as f:
             fp = json.load(f)
@@ -48,6 +50,8 @@ def load_norm_stats():
             float(props["std"]),
         )
     except (OSError, KeyError, ValueError):
+        print(f"[aligned] DATASET_FINGERPRINT задан, но не читается: "
+              f"{config.DATASET_FINGERPRINT} — использую константы из config")
         return config.CT_CLIP_LO, config.CT_CLIP_HI, config.CT_MEAN, config.CT_STD
 
 

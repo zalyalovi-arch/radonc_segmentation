@@ -93,8 +93,11 @@ CONDA_PYTHON = ""  # пусто = найдём автоматически (см.
 HW_FINGERPRINT = ""
 
 # ---------- Константы модели (НЕ менять — должны совпадать с обучением) ----------
-# DATASET_FINGERPRINT можно переопределить в settings.ini [model] DATASET_FINGERPRINT
-DATASET_FINGERPRINT = r"C:\nnunet\model_headandneck\nnUNet_preprocessed\Dataset001_headandneck\dataset_fingerprint.json"
+# Опциональный путь к dataset_fingerprint.json, снятому при обучении
+# (переопределяется в settings.ini [model] DATASET_FINGERPRINT). Файл есть
+# только на машине, где обучали модель; пусто = использовать зашитые ниже
+# константы (их значения сняты с этого fingerprint).
+DATASET_FINGERPRINT = ""
 TARGET_SPACING_ZYX = (2.0, 1.171875, 1.171875)
 CT_CLIP_LO = -990.0
 CT_CLIP_HI = 1470.0
