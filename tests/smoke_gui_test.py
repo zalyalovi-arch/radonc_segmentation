@@ -12,8 +12,10 @@ import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # offscreen-платформа не видит шрифты Windows — указываем папку явно,
-# иначе весь текст на скриншотах рисуется квадратиками
-os.environ.setdefault("QT_QPA_FONTDIR", r"C:\Windows\Fonts")
+# иначе весь текст на скриншотах рисуется квадратиками (папка есть
+# только на Windows; на другой ОС Qt берёт системные шрифты сам)
+if os.path.isdir(r"C:\Windows\Fonts"):
+    os.environ.setdefault("QT_QPA_FONTDIR", r"C:\Windows\Fonts")
 
 # pytest добавляет корень проекта через conftest.py; при прямом запуске
 # cwd и так корень (python -m tests.smoke_gui_test)
