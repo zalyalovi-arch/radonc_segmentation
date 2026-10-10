@@ -9,13 +9,17 @@
 # Важно:
 # - .ui файлы В СБОРКУ НЕ ВХОДЯТ: exe читает их из gui\ui\ рядом с собой,
 #   поэтому правки раскладки из Qt Designer подхватываются без пересборки.
+#   (в onefile их кладём в _MEIPASS: datas ниже)
 # - pyside6-uic.exe (нативный компилятор .ui из пакета PySide6) кладём в
 #   сборку под именем pyside6-uic.exe: loadUiType запускает его из PATH
 #   (PATH дополняет gui/__init__.py через sys._MEIPASS).
 # - Тяжёлые ML-пакеты исключены: пайплайн запускается python'ом окружения
-#   через subprocess (PYTHON_EXE из [gui] CONDA_PYTHON / автопоиск), как в
-#   tkinter-версии. В exe бандлим только то, что GUI выполняет сам:
-#   PySide6 + numpy/scipy (постпроцессинг) + SimpleITK + config.
+#   через subprocess (PYTHON_EXE из [gui] CONDA_PYTHON / автопоиск).
+#   Пакет radonc_segmentation (config, pipeline, env_check, ...) кладётся
+#   в _MEIPASS как ДАННЫЕ (source-файлы), а gui/__init__.child_env()
+#   передаёт PYTHONPATH=_MEIPASS дочерним python -m процессам. В exe
+#   бандлим только то, что GUI выполняет сам: PySide6 + numpy/scipy
+#   (постпроцессинг) + SimpleITK + radonc_segmentation.config.
 #   matplotlib ИСКЛЮЧЁН (вкладка «Постпроцессинг» отключена в exe).
 # ============================================================
 import os
@@ -35,21 +39,23 @@ shutil.copy2(os.path.join(PYSIDE_DIR, "uic.exe"), _uic_exe)
 
 binaries = [(_uic_exe, ".")]
 
-# Данные для onefile: .ui файлы и scripts папка
+# Данные для onefile: .ui файлы и пакет radonc_segmentation (исходники,
+# включая __init__.py и подпакеты; template-JSONы постпроцессинга внутри)
 datas = [
     (os.path.join(ROOT, "gui", "ui"), "gui/ui"),
-    (os.path.join(ROOT, "scripts"), "scripts"),
+    (os.path.join(ROOT, "radonc_segmentation"), "radonc_segmentation"),
 ]
 
 a = Analysis(
     ["gui/main.py"],
-    pathex=[ROOT, os.path.join(ROOT, "scripts")],
+    pathex=[ROOT],
     binaries=binaries,
     datas=datas,
     hiddenimports=[
-        "config",
-        "postprocess_core",
-        "import_dicom",
+        "radonc_segmentation",
+        "radonc_segmentation.config",
+        "radonc_segmentation.postprocess_core",
+        "radonc_segmentation.import_dicom",
         "gui.postprocess_tab",
     ],
     hookspath=[],
