@@ -1,10 +1,10 @@
 # ============================================================
-# smoke_test.py — проверка PySide6-GUI без монитора (offscreen)
+# smoke_gui_test.py — проверка PySide6-GUI без монитора (offscreen)
 # ------------------------------------------------------------
 # Собирает MainWindow, ждёт фоновой проверки окружения, грузит
 # валидационный кейс на вкладке «Постпроцессинг», снимает скриншоты
 # всех вкладок в _screenshots\. Запуск:
-#   python tests\smoke_test.py
+#   python -m pytest tests\smoke_gui_test.py  (из корня проекта)
 # ============================================================
 import os
 import sys
@@ -15,9 +15,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # иначе весь текст на скриншотах рисуется квадратиками
 os.environ.setdefault("QT_QPA_FONTDIR", r"C:\Windows\Fonts")
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
-sys.path.insert(0, os.path.join(ROOT, "scripts"))
+# pytest добавляет корень проекта через conftest.py; при прямом запуске
+# cwd и так корень (python -m tests.smoke_gui_test)
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -108,6 +107,10 @@ def main():
 
     win.close()
     print("SMOKE OK")
+
+
+def test_smoke_gui():
+    main()
 
 
 if __name__ == "__main__":
