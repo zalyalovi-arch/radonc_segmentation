@@ -6,10 +6,14 @@ GUI-пайплайн автоматической сегментации орг�
 
 Если вы используете репозиторий, не забывайте ссылаться на:
 ```text
-Залялов И.Ф. Сегментация органов риска головы и шеи при помощи свёрточных нейросетей. Онкологический журнал: лучевая диагностика, лучевая терапия. 2026;9(3):19-26. https://doi.org/10.37174/2587-7593-2026-9-3-19-26
+Залялов И.Ф. Сегментация органов риска головы и шеи при помощи свёрточных нейросетей.
+Онкологический журнал: лучевая диагностика, лучевая терапия. 2026;9(3):19-26.
+https://doi.org/10.37174/2587-7593-2026-9-3-19-26
 ```
 ```text
-Zalyalov I.F. Head and Neck Organs at Risk Segmentation Using Convolutional Neural Networks. Journal of oncology: diagnostic radiology and radiotherapy. 2026;9(3):19-26. (In Russ.) https://doi.org/10.37174/2587-7593-2026-9-3-19-26
+Zalyalov I.F. Head and Neck Organs at Risk Segmentation Using Convolutional Neural Networks.
+Journal of oncology: diagnostic radiology and radiotherapy. 2026;9(3):19-26. (In Russ.)
+https://doi.org/10.37174/2587-7593-2026-9-3-19-26
 ```
 
 Проект навайбкожен при помощи GLM5.3 (Z.ai), Nemotron (Nvidia) и Алиса AI (Яндекс) - ошибки возможны, проект развивается (тизер - ожидается дистилляция модели).
