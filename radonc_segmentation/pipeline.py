@@ -3,12 +3,13 @@
 # ------------------------------------------------------------
 # import DICOM -> NIfTI -> инференс (OpenVINO) -> RTSTRUCT -> экспорт
 #
-# Запуск:
-#   python pipeline.py "D:\экспорт\пациент\CT"   # новый пациент (ID выдаётся сам)
-#   python pipeline.py P007                      # пересчёт существующего
-#   python pipeline.py P007 --variant aligned    # инференс с выровненной преобработкой
-#   python pipeline.py P007 --stride 0.625       # реже сетка патчей (быстрее)
-#   python pipeline.py P007 --no-export          # без копирования RTSTRUCT обратно
+# Запуск (из корня проекта, после pip install -e . или без установки):
+#   python -m radonc_segmentation.pipeline "D:\экспорт\пациент\CT"   # новый пациент (ID выдаётся сам)
+#   python -m radonc_segmentation.pipeline P007                      # пересчёт существующего
+#   python -m radonc_segmentation.pipeline P007 --variant aligned    # инференс с выровненной преобработкой
+#   python -m radonc_segmentation.pipeline P007 --stride 0.625       # реже сетка патчей (быстрее)
+#   python -m radonc_segmentation.pipeline P007 --no-export          # без копирования RTSTRUCT обратно
+# (после установки пакета доступен и короткий алиас: radonc-pipeline ...)
 #
 # Исходная папка DICOM запоминается в patients\PXXX\patient.json при импорте,
 # поэтому экспорт обратно не требует перепечатывать путь.
@@ -22,10 +23,12 @@ import subprocess
 import sys
 import time
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPTS_DIR)
-import config
-import env_check
+from radonc_segmentation import config
+from radonc_segmentation import env_check
+
+# корень проекта (папка с settings.ini, patients\, models\) — cwd для
+# дочерних шагов и база относительных путей
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def log_row(row):
@@ -56,7 +59,7 @@ def run_step(title, cmd):
     print(f"\n--- {title} ---")
     print("> " + " ".join(cmd))
     t0 = time.perf_counter()
-    r = subprocess.run(cmd, cwd=SCRIPTS_DIR)
+    r = subprocess.run(cmd, cwd=PROJECT_DIR)
     dt = time.perf_counter() - t0
     if r.returncode != 0:
         raise RuntimeError(f"Шаг '{title}' завершился с кодом {r.returncode}")
@@ -96,7 +99,7 @@ def main():
     # 1. Определение пациента
     if os.path.isdir(args.target):
         print(f"Цель — папка с DICOM: {args.target}")
-        import import_dicom
+        from radonc_segmentation import import_dicom
         patient_id, base_dir = import_dicom.import_dicom(args.target)
     else:
         patient_id = normalize_patient_id(args.target)
@@ -131,16 +134,16 @@ def main():
         else:
             timings["convert"] = run_step(
                 "Конвертация DICOM -> NIfTI",
-                [sys.executable, os.path.join(SCRIPTS_DIR, "dicom_to_nifti.py"), patient_id],
+                [sys.executable, "-m", "radonc_segmentation.dicom_to_nifti", patient_id],
             )
 
         # 3. Инференс
         if args.variant == "aligned":
-            infer_cmd = [sys.executable, os.path.join(SCRIPTS_DIR, "aligned", "infer_ov_aligned.py"),
+            infer_cmd = [sys.executable, "-m", "radonc_segmentation.aligned.infer_ov_aligned",
                          patient_id] + infer_flags
             seg_name = f"{patient_id}_aligned.nii.gz"
         else:
-            infer_cmd = [sys.executable, os.path.join(SCRIPTS_DIR, "infer_ov.py"),
+            infer_cmd = [sys.executable, "-m", "radonc_segmentation.infer_ov",
                          patient_id, "--force"] + infer_flags
             seg_name = f"{patient_id}.nii.gz"
         timings["infer"] = run_step(f"Инференс ({args.variant})", infer_cmd)
@@ -151,7 +154,7 @@ def main():
                 raise RuntimeError(f"Шаблон постпроцессинга не найден: {args.postprocess_template}")
             import SimpleITK as sitk
             import numpy as np
-            import postprocess_core as ppcore
+            from radonc_segmentation import postprocess_core as ppcore
             seg_path = os.path.join(base_dir, "seg_nnunet", seg_name)
             print(f"\n--- Постпроцессинг по шаблону: {args.postprocess_template} ---")
             nii = sitk.ReadImage(seg_path)
@@ -167,7 +170,7 @@ def main():
         # 4. RTSTRUCT
         timings["rtstruct"] = 0.0
         if not args.no_rtstruct:
-            rt_cmd = [sys.executable, os.path.join(SCRIPTS_DIR, "make_rtstruct_hn.py"),
+            rt_cmd = [sys.executable, "-m", "radonc_segmentation.make_rtstruct_hn",
                       patient_id, seg_name]
             timings["rtstruct"] = run_step("Создание RTSTRUCT", rt_cmd)
         else:
@@ -187,11 +190,11 @@ def main():
             if src and os.path.isdir(src):
                 timings["export"] = run_step(
                     "Экспорт RTSTRUCT в исходную папку",
-                    [sys.executable, os.path.join(SCRIPTS_DIR, "export_rtstruct.py"), patient_id, src],
+                    [sys.executable, "-m", "radonc_segmentation.export_rtstruct", patient_id, src],
                 )
             else:
                 print("\nИсходная папка неизвестна (нет patient.json) — экспорт пропущен.")
-                print(f"Вручную: python export_rtstruct.py {patient_id} \"<исходная папка DICOM>\"")
+                print(f"Вручную: python -m radonc_segmentation.export_rtstruct {patient_id} \"<исходная папка DICOM>\"")
     except RuntimeError as e:
         total_min = (time.perf_counter() - t_total) / 60
         print(f"\n!!! {e}")

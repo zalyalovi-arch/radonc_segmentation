@@ -1,20 +1,15 @@
 # ============================================================
 # main.py — точка входа PySide6-версии GUI пайплайна H&N
 # ------------------------------------------------------------
-# Dev-запуск: run_gui.bat (python окружения nnunet_env).
-# exe: nnunet_gui.exe в корне проекта — собирается build.bat
-# (spec: nnunet_gui_pyside.spec). Раскладка окон — gui/ui/*.ui
-# (Qt Designer), логика — gui/*.
+# Dev-запуск: run_gui.bat  (= python -m gui.main из корня проекта;
+# python окружения nnunet_env). exe: nnunet_gui.exe в корне проекта —
+# собирается build.bat (spec: nnunet_gui_pyside.spec).
+# Раскладка окон — gui/ui/*.ui (Qt Designer), логика — gui/*.
 # ============================================================
 import os
 import sys
 
-if not getattr(sys, "frozen", False):
-    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    sys.path.insert(0, _ROOT)                            # пакет gui
-    sys.path.insert(0, os.path.join(_ROOT, "scripts"))   # config и др.
-
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication
 
 
 def main():

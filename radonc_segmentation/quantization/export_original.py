@@ -25,8 +25,7 @@ import tempfile
 
 import torch
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import config
+from radonc_segmentation import config
 
 RESULTS_DIR = (r"C:\nnunet\model_headandneck\nnUNet_results\Dataset001_headandneck"
                r"\nnUNetTrainerNoMirroring__nnUNetResEncUNetMPlans__3d_fullres")

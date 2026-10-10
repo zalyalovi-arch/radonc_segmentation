@@ -20,8 +20,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from matplotlib.colors import hsv_to_rgb
 
-import config
-import postprocess_core as core
+from radonc_segmentation import config
+from radonc_segmentation import postprocess_core as core
 
 WINDOW_PRESETS = {"мягкая ткань": (400, 40), "кость": (2000, 500), "лёгкие": (1500, -600)}
 

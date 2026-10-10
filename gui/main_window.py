@@ -22,8 +22,8 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QLabel,
                                QLineEdit, QMainWindow, QMessageBox, QPushButton,
                                QWidget)
 
-import config  # noqa: E402
-from gui import PROJECT_ROOT, SCRIPTS_DIR, UI_DIR  # noqa: E402
+from radonc_segmentation import config  # noqa: E402
+from gui import PROJECT_ROOT, PKG_DIR, UI_DIR, child_env  # noqa: E402
 from gui.workers import JobWorker  # noqa: E402
 
 _IS_FROZEN = getattr(sys, "frozen", False)
@@ -41,7 +41,7 @@ CREATE_NO_WINDOW = 0x08000000
 # вкладка «Постпроцессинг» требует numpy/SimpleITK/matplotlib
 try:
     from gui.postprocess_tab import PostprocessTab
-    import postprocess_core as ppcore
+    from radonc_segmentation import postprocess_core as ppcore
     _POST_OK = True
 except Exception as _post_err:
     _POST_OK = False
@@ -235,13 +235,13 @@ class MainWindow(QMainWindow):
     def _busy(self):
         return self.job_thread is not None and self.job_thread.isRunning()
 
-    def _python_cmd(self, script, *args):
+    def _python_cmd(self, module, *args):
         if PYTHON_EXE is None:
             raise RuntimeError(
                 "Python окружения nnunet_env не найден. Настройте компьютер:\n"
-                "  python scripts\\setup_env.py\n"
+                "  python setup_env.py\n"
                 "или укажите путь в settings.ini ([gui] CONDA_PYTHON).")
-        return [PYTHON_EXE, os.path.join(SCRIPTS_DIR, script), *args]
+        return [PYTHON_EXE, "-m", module, *args]
 
     # ---------- фоновые задачи ----------
 
@@ -253,7 +253,8 @@ class MainWindow(QMainWindow):
         self._log(f"\n>>> {title}\n")
         self.on_job_done_cb = on_done
         self.job_thread = QThread(self)
-        self.worker = JobWorker(title, commands=commands, in_process=in_process, cwd=SCRIPTS_DIR)
+        self.worker = JobWorker(title, commands=commands, in_process=in_process,
+                                cwd=PROJECT_ROOT, env=child_env())
         self.worker.moveToThread(self.job_thread)
         self.worker.line.connect(self._log)
         self.worker.finished_job.connect(self._on_job_finished)
@@ -318,14 +319,14 @@ class MainWindow(QMainWindow):
 
     def _startup_checks(self):
         problems = []
-        if not os.path.isfile(os.path.join(SCRIPTS_DIR, "pipeline.py")):
-            problems.append(f"Не найден pipeline.py в {SCRIPTS_DIR}.\n"
-                            "Положите exe в корень проекта (рядом с settings.ini и папкой scripts).")
+        if not os.path.isfile(os.path.join(PKG_DIR, "pipeline.py")):
+            problems.append(f"Не найден radonc_segmentation\\pipeline.py в {PKG_DIR}.\n"
+                            "Положите exe в корень проекта (рядом с settings.ini).")
         if PYTHON_EXE is None:
             problems.append(
                 "Не найден python окружения nnunet_env ни в одном типовом месте.\n"
                 "Настройте компьютер одной командой:\n"
-                "  python scripts\\setup_env.py\n"
+                "  python setup_env.py\n"
                 "или укажите путь в settings.ini ([gui] CONDA_PYTHON).")
         if problems:
             QMessageBox.warning(self, "Проблема конфигурации", "\n\n".join(problems))
@@ -334,7 +335,7 @@ class MainWindow(QMainWindow):
             self._log(f"[GUI] {config.AUTOTUNE_NOTICE}\n")
             QMessageBox.information(self, "Новый компьютер", config.AUTOTUNE_NOTICE)
 
-        self._log(f"Скрипты: {SCRIPTS_DIR}\nPython: {PYTHON_EXE}\n"
+        self._log(f"Пакет: {PKG_DIR}\nPython: {PYTHON_EXE}\n"
                   f"Настройки: {config.SETTINGS_PATH or 'settings.ini не найден (значения по умолчанию)'}\n")
 
         # зависимости окружения проверяем тем же python, которым будут
@@ -344,9 +345,9 @@ class MainWindow(QMainWindow):
 
         def run_env_check(log):
             r = subprocess.run(
-                [PYTHON_EXE, os.path.join(SCRIPTS_DIR, "env_check.py"), "--fast"],
+                [PYTHON_EXE, "-m", "radonc_segmentation.env_check", "--fast"],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
-                timeout=300, creationflags=CREATE_NO_WINDOW)
+                timeout=300, creationflags=CREATE_NO_WINDOW, env=child_env())
             out = ((r.stdout or "") + (r.stderr or "")).strip()
             if out:
                 log(out + "\n")
@@ -359,7 +360,7 @@ class MainWindow(QMainWindow):
                     self, "Проверка окружения",
                     "Пакеты из requirements.txt установлены не полностью (см. лог):\n\n"
                     + (out_box[-1][-1800:] if out_box else "")
-                    + "\n\nУстановка: python scripts\\setup_env.py")
+                    + "\n\nУстановка: python setup_env.py")
             else:
                 self._log("[GUI] Окружение проверено: все пакеты requirements.txt на месте.\n")
 
@@ -374,7 +375,7 @@ class MainWindow(QMainWindow):
             return
 
         def do_import(log):
-            import import_dicom
+            from radonc_segmentation import import_dicom
             pid, base_dir = import_dicom.import_dicom(folder)
             self.patient_id = pid
 
@@ -406,7 +407,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", "Импортируйте DICOM или выберите ID пациента.")
             return
         try:
-            cmd = self._python_cmd("pipeline.py", self.patient_id, "--no-export",
+            cmd = self._python_cmd("radonc_segmentation.pipeline", self.patient_id, "--no-export",
                                    "--variant", self.cmbVariant.currentText())
         except RuntimeError as e:
             QMessageBox.critical(self, "Ошибка", str(e))
@@ -448,7 +449,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", "Укажите папку для экспорта.")
             return
         try:
-            cmd = self._python_cmd("export_rtstruct.py", self.patient_id, folder)
+            cmd = self._python_cmd("radonc_segmentation.export_rtstruct", self.patient_id, folder)
         except RuntimeError as e:
             QMessageBox.critical(self, "Ошибка", str(e))
             return
@@ -476,12 +477,10 @@ class MainWindow(QMainWindow):
     def _watch_start(self):
         if self._watch_running():
             return
-        cmd = self._python_cmd("watch_folder.py")
+        cmd = self._python_cmd("radonc_segmentation.watch_folder")
         self._log(f"\n>>> watch-папка: {config.WATCH_DIR}\n$ " + subprocess.list2cmdline(cmd) + "\n")
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
         self.watch_proc = subprocess.Popen(
-            cmd, cwd=SCRIPTS_DIR, env=env,
+            cmd, cwd=PROJECT_ROOT, env=child_env(),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace",
             bufsize=1, creationflags=CREATE_NO_WINDOW,
@@ -536,7 +535,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", "Имя новой модели: латиница/цифры/./_/- (напр. int8_exp1, int8_v1.0)")
             return
         try:
-            cmd = self._python_cmd(os.path.join("quantization", "quantize_ov.py"),
+            cmd = self._python_cmd("radonc_segmentation.quantization.quantize_ov",
                                    "--source", source, "--name", name,
                                    "--mode", self.cmbQuantMode.currentText())
         except RuntimeError as e:
@@ -550,7 +549,7 @@ class MainWindow(QMainWindow):
                     self, "Квантизация",
                     f"Модель {name!r} создана.\n"
                     f"Выберите её на вкладке «Настройки» и сравните качество:\n"
-                    f"python compare_dice.py <seg> <seg_новой_модели>")
+                    f"python -m radonc_segmentation.compare_dice <seg> <seg_новой_модели>")
             else:
                 QMessageBox.critical(self, "Квантизация", "Ошибка квантизации — см. лог.")
 
@@ -564,7 +563,7 @@ class MainWindow(QMainWindow):
             return
         models = f"{self.cmbBenchA.currentText()},{self.cmbBenchB.currentText()}"
         try:
-            cmd = self._python_cmd(os.path.join("quantization", "benchmark_dice.py"),
+            cmd = self._python_cmd("radonc_segmentation.quantization.benchmark_dice",
                                    "--models", models, "--n", str(n))
         except RuntimeError as e:
             QMessageBox.critical(self, "Ошибка", str(e))
@@ -585,7 +584,7 @@ class MainWindow(QMainWindow):
         self._start_job(f"Бенчмарк Dice: {models} × {n} случ.", [cmd], on_done=after)
 
     def _quant_list(self):
-        cmd = self._python_cmd(os.path.join("quantization", "quantize_ov.py"), "--list")
+        cmd = self._python_cmd("radonc_segmentation.quantization.quantize_ov", "--list")
         self._start_job("Список моделей", [cmd])
 
     # ================= ВКЛАДКА «НАСТРОЙКИ» =================
@@ -721,7 +720,7 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Настройки", f"Сохранено в:\n{path}")
 
     def _check_devices(self):
-        self._start_job("Проверка устройств", [self._python_cmd("check_devices.py")])
+        self._start_job("Проверка устройств", [self._python_cmd("radonc_segmentation.check_devices")])
 
     # ---------- закрытие ----------
 

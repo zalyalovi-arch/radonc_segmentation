@@ -22,9 +22,7 @@ import sys
 import numpy as np
 import SimpleITK as sitk
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(SCRIPTS_DIR))
-import config  # noqa: E402
+from radonc_segmentation import config
 
 
 def dice(a, b):
@@ -52,7 +50,7 @@ def main():
     val_root = os.path.dirname(config.VALIDATION_IMAGES)
     ext_root = os.path.join(val_root, "external", args.external_name)
     ours_dir = args.ours_dir or val_root
-    map_path = os.path.join(SCRIPTS_DIR, "ts_to_labels.json")
+    map_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ts_to_labels.json")
     with open(map_path, "r", encoding="utf-8") as f:
         mapping = json.load(f)
     groups = mapping.get("groups", {})

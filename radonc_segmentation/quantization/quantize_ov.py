@@ -34,8 +34,7 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import config
+from radonc_segmentation import config
 
 # NNCF при импорте пробует загрузить TF-бэкенд; TensorFlow в этом окружении
 # сломан (скампилирован под NumPy 1.x, стоит NumPy 2.2) и валит весь импорт.

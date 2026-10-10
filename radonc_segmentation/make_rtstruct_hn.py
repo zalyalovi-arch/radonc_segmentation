@@ -1,15 +1,13 @@
 import os
 import sys
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPTS_DIR)
 
 import SimpleITK as sitk
 import numpy as np
 from rt_utils import RTStructBuilder
 import colorsys
 
-import env_check
+from radonc_segmentation import env_check
 
 # предупреждаем о проблемах окружения ДО трейсбеков (см. env_check.py)
 env_check.ensure_ready()
@@ -60,7 +58,7 @@ def main():
     # ========================================
 
     # ========= ПАПКА ПАЦИЕНТОВ (из settings.ini / config.py) =========
-    import config
+    from radonc_segmentation import config
     patients_root = config.PATIENTS_ROOT
     base_dir = os.path.join(patients_root, patient_id)
     # =================================================

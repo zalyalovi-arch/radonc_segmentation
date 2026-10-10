@@ -24,9 +24,9 @@ import time
 import numpy as np
 import SimpleITK as sitk
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPTS_DIR)
-import config
+from radonc_segmentation import config
+
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def dice(a, b):
@@ -92,9 +92,8 @@ def run_validation(n_cases, csv_path=None):
         )
     print(f"Случаев к валидации: {len(cases)}")
 
-    python_exe = sys.executable
-    infer_legacy = os.path.join(SCRIPTS_DIR, "infer_ov.py")
-    infer_aligned = os.path.join(SCRIPTS_DIR, "aligned", "infer_ov_aligned.py")
+    infer_legacy = [sys.executable, "-m", "radonc_segmentation.infer_ov"]
+    infer_aligned = [sys.executable, "-m", "radonc_segmentation.aligned.infer_ov_aligned"]
 
     per_variant = {"legacy": [], "aligned": []}
     name_by_value = {v: k for k, v in config.LABELS.items()}
@@ -110,11 +109,11 @@ def run_validation(n_cases, csv_path=None):
             (infer_aligned, out_aligned, "aligned"),
         ]:
             tmp = os.path.join(config.LOG_DIR, f"_tmp_{variant}")
-            cmd = [python_exe, script, case, "--input", img_path, "--output", out,
-                   "--force", "--tmp-dir", tmp]
+            cmd = script + [case, "--input", img_path, "--output", out,
+                            "--force", "--tmp-dir", tmp]
             print(f"[{variant}] {' '.join(cmd)}")
             t0 = time.perf_counter()
-            r = subprocess.run(cmd, cwd=SCRIPTS_DIR)
+            r = subprocess.run(cmd, cwd=PROJECT_DIR)
             if r.returncode != 0:
                 print(f"[{variant}] ОШИБКА (код {r.returncode}) — пропуск")
                 continue

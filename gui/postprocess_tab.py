@@ -18,8 +18,8 @@ from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import (QApplication, QFileDialog, QInputDialog,
                                QMessageBox, QTreeWidgetItem, QWidget)
 
-import config
-import postprocess_core as core
+from radonc_segmentation import config
+from radonc_segmentation import postprocess_core as core
 from gui import UI_DIR
 from gui.mpl_canvas import MplCanvas  # noqa: F401 — нужен для промоушена в .ui
 

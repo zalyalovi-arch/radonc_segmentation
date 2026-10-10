@@ -26,12 +26,13 @@ class JobWorker(QObject):
     line = Signal(str)             # строка лога
     finished_job = Signal(str, int)  # (заголовок, код возврата)
 
-    def __init__(self, title, commands=None, in_process=None, cwd=None):
+    def __init__(self, title, commands=None, in_process=None, cwd=None, env=None):
         super().__init__()
         self.title = title
         self.commands = list(commands or [])
         self.in_process = in_process
         self.cwd = cwd
+        self.env = env
         self.proc = None           # текущий запущенный процесс (для stop())
 
     @Slot()
@@ -43,8 +44,8 @@ class JobWorker(QObject):
                 if isinstance(ret, int):
                     rc = ret
             else:
-                env = os.environ.copy()
-                env["PYTHONIOENCODING"] = "utf-8"
+                env = self.env if self.env is not None else os.environ.copy()
+                env.setdefault("PYTHONIOENCODING", "utf-8")
                 for cmd in self.commands:
                     self.line.emit("$ " + subprocess.list2cmdline(cmd) + "\n")
                     self.proc = subprocess.Popen(

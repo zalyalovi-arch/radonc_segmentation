@@ -21,13 +21,11 @@ import time
 import numpy as np
 import SimpleITK as sitk
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_DIR = os.path.dirname(os.path.dirname(SCRIPTS_DIR))
-sys.path.insert(0, os.path.dirname(SCRIPTS_DIR))  # scripts\ — для config
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import config  # noqa: E402
+from radonc_segmentation import config
 
-MAP_PATH = os.path.join(SCRIPTS_DIR, "ts_to_labels.json")
+MAP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ts_to_labels.json")
 
 
 def find_cases():

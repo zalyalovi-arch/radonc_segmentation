@@ -8,8 +8,7 @@ import shutil
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import config
+from radonc_segmentation import config
 
 
 def get_next_patient_id(patients_root):

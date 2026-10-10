@@ -24,9 +24,9 @@ import time
 import numpy as np
 import nibabel as nib
 
-import config
-import env_check
-import ov_infer_core as core_mod
+from radonc_segmentation import config
+from radonc_segmentation import env_check
+from radonc_segmentation import ov_infer_core as core_mod
 
 # предупреждаем о проблемах окружения ДО трейсбеков (см. env_check.py)
 env_check.ensure_ready()

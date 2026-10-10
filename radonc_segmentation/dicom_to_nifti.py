@@ -1,12 +1,9 @@
 import os
 import sys
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPTS_DIR)
-
 import SimpleITK as sitk
 
-import env_check
+from radonc_segmentation import env_check
 
 # предупреждаем о проблемах окружения ДО трейсбеков (см. env_check.py)
 env_check.ensure_ready()
@@ -74,8 +71,7 @@ if __name__ == "__main__":
     #
     # containing a "ct_dicom" subfolder.
 
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    import config
+    from radonc_segmentation import config
 
     if len(sys.argv) < 1 + 1:
         raise SystemExit("Usage: python dicom_to_nifti.py P001")

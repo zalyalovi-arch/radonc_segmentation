@@ -27,11 +27,9 @@ import time
 import numpy as np
 import SimpleITK as sitk
 
-# импорт config/ov_infer_core из родительской папки scripts
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import config
-import env_check
-import ov_infer_core as core_mod
+from radonc_segmentation import config
+from radonc_segmentation import env_check
+from radonc_segmentation import ov_infer_core as core_mod
 
 # предупреждаем о проблемах окружения ДО трейсбеков (см. env_check.py)
 env_check.ensure_ready()

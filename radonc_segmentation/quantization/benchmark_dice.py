@@ -26,10 +26,10 @@ from collections import defaultdict
 
 import numpy as np
 
-SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, SCRIPTS_DIR)
-import config
-import compare_dice as cd
+from radonc_segmentation import config
+from radonc_segmentation import compare_dice as cd
+
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 VALID_IMAGES = config.VALIDATION_IMAGES
 VALID_LABELS = config.VALIDATION_LABELS
@@ -55,7 +55,7 @@ def find_cases(limit):
 
 def run_inference(case, img_path, out_path, model_cfg, args, tmp_dir):
     """Прогон инференса одной модели; возвращает (total_s, sec_per_patch, n_patches)."""
-    cmd = [sys.executable, os.path.join(SCRIPTS_DIR, "infer_ov.py"),
+    cmd = [sys.executable, "-m", "radonc_segmentation.infer_ov",
            case, "--input", img_path, "--output", out_path,
            "--force", "--tmp-dir", tmp_dir, "--model", model_cfg["name"]]
     if args.folds:
@@ -66,7 +66,7 @@ def run_inference(case, img_path, out_path, model_cfg, args, tmp_dir):
         cmd += ["--device", args.device]
 
     t0 = time.perf_counter()
-    r = subprocess.run(cmd, cwd=SCRIPTS_DIR, capture_output=True, text=True,
+    r = subprocess.run(cmd, cwd=PROJECT_DIR, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     wall = time.perf_counter() - t0
     if r.returncode != 0:

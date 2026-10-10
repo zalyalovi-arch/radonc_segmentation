@@ -18,10 +18,10 @@ import subprocess
 import sys
 import time
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPTS_DIR)
-import config
-import env_check
+from radonc_segmentation import config
+from radonc_segmentation import env_check
+
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # предупреждаем о проблемах окружения ДО старта цикла (см. env_check.py)
 env_check.ensure_ready()
@@ -89,8 +89,8 @@ def main():
                     with open(processing, "w", encoding="utf-8") as f:
                         f.write(stamp)
 
-                    cmd = [sys.executable, os.path.join(SCRIPTS_DIR, "pipeline.py"), folder]
-                    r = subprocess.run(cmd, cwd=SCRIPTS_DIR)
+                    cmd = [sys.executable, "-m", "radonc_segmentation.pipeline", folder]
+                    r = subprocess.run(cmd, cwd=PROJECT_DIR)
 
                     os.remove(processing)
                     if r.returncode == 0:

@@ -37,10 +37,8 @@ from skimage.morphology import ball
 
 import SimpleITK as sitk
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPTS_DIR)
-import config
-import env_check
+from radonc_segmentation import config
+from radonc_segmentation import env_check
 
 env_check.ensure_ready()
 

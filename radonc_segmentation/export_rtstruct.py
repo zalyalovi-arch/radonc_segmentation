@@ -4,10 +4,7 @@ import os
 import sys
 import shutil
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPTS_DIR)
-
-import config
+from radonc_segmentation import config
 
 
 def main():
