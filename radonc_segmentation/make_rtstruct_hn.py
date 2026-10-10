@@ -59,8 +59,7 @@ def main():
 
     # ========= ПАПКА ПАЦИЕНТОВ (из settings.ini / config.py) =========
     from radonc_segmentation import config
-    patients_root = config.PATIENTS_ROOT
-    base_dir = os.path.join(patients_root, patient_id)
+    base_dir = config.patient_dir(patient_id)   # patients\<MODEL_NAME>\<ID>
     # =================================================
 
     # ========= PATHS FOR THIS PATIENT =========
