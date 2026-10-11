@@ -76,44 +76,80 @@ def resolve_source(source):
 
 def build_calibration(n_volumes, patches_per_volume, seed=42):
     r"""
-    Патчи калибровки из реальных КТ пациентов (legacy-преобработка,
-    как в infer_ov.py). Кэш: models\_calibration.npz.
+    Патчи калибровки из реальных КТ пациентов — В ТОМ ЖЕ домене преобработки,
+    в котором модель будет работать ([inference] VARIANT): aligned = ресемпл
+    в TARGET_SPACING + CTNormalization (как infer_ov_aligned), legacy =
+    перцентильная нормализация (как infer_ov). Кэш: models\_calibration[_aligned].npz.
     """
-    cache = os.path.join(config.MODELS_ROOT, "_calibration.npz")
+    aligned = str(config.DEFAULT_VARIANT).lower() == "aligned"
+    cache = os.path.join(config.MODELS_ROOT,
+                         "_calibration_aligned.npz" if aligned else "_calibration.npz")
     if os.path.isfile(cache):
         data = np.load(cache)["patches"]
         print(f"Калибровка из кэша: {cache} ({data.shape[0]} патчей)")
         return data
 
-    import nibabel as nib
-    from scipy.ndimage import gaussian_filter  # noqa: F401 (совместимость)
     rng = random.Random(seed)
     volumes = []
-    for pid in sorted(os.listdir(config.PATIENTS_ROOT)):
-        p = os.path.join(config.PATIENTS_ROOT, pid, "nnunet_input", f"{pid}_0000.nii.gz")
-        if os.path.isfile(p):
-            volumes.append(p)
+    # per-модельная структура patients\<модель>\<PID>\nnunet_input\... (+ legacy
+    # плоская patients\<PID>\ — для обратной совместимости старых проектов)
+    for base in (config.patients_dir(), config.PATIENTS_ROOT):
+        if not os.path.isdir(base):
+            continue
+        for pid in sorted(os.listdir(base)):
+            p = os.path.join(base, pid, "nnunet_input", f"{pid}_0000.nii.gz")
+            if os.path.isfile(p) and p not in volumes:
+                volumes.append(p)
     if not volumes:
         raise SystemExit(f"Нет NIfTI пациентов в {config.PATIENTS_ROOT} — "
                          f"импортируйте хотя бы одного пациента для калибровки")
     rng.shuffle(volumes)
     volumes = volumes[:n_volumes]
-    print(f"Калибровка: {len(volumes)} томов x {patches_per_volume} патчей")
+    print(f"Калибровка: {len(volumes)} томов x {patches_per_volume} патчей "
+          f"(домен {'aligned' if aligned else 'legacy'})")
 
     patch_shape = config.DEFAULT_PATCH_SIZE  # (Z, Y, X)
+    prepared = []
+    if aligned:
+        # тот же домен, что у aligned-инференса: ресемпл в training spacing,
+        # кроп тела по HU, CTNormalization с глобальными статистиками датасета
+        import SimpleITK as sitk
+        from radonc_segmentation.aligned.infer_ov_aligned import (
+            load_norm_stats, resample_to_target)
+        from radonc_segmentation import ov_infer_core as core_mod
+        tgt_xyz = tuple(reversed(config.TARGET_SPACING_ZYX))
+        clip_lo, clip_hi, ct_mean, ct_std = load_norm_stats()
+        print(f"CTNormalization: clip [{clip_lo}, {clip_hi}], "
+              f"mean={ct_mean:.2f}, std={ct_std:.2f}")
+        for path in volumes:
+            img_rs, _sz = resample_to_target(sitk.ReadImage(path), tgt_xyz)
+            hu = sitk.GetArrayFromImage(img_rs).astype(np.float32)  # (Z, Y, X)
+            bbox = core_mod.body_bbox_zyx(hu, threshold_hu=config.AIR_THRESHOLD_HU,
+                                          margin=config.CROP_MARGIN_VOXELS)
+            if bbox is not None:
+                hu = core_mod.crop_bbox(hu, bbox)
+            data = np.clip(hu, clip_lo, clip_hi)
+            data = ((data - ct_mean) / ct_std).astype(np.float32)
+            prepared.append(data)
+    else:
+        import nibabel as nib
+        from scipy.ndimage import gaussian_filter  # noqa: F401 (совместимость)
+        for path in volumes:
+            nii = nib.load(path)
+            data = nii.get_fdata(dtype=np.float32)          # (X, Y, Z)
+            data = np.transpose(data, (2, 1, 0))            # (Z, Y, X)
+            # legacy-нормализация infer_ov.py
+            lo, hi = np.percentile(data, (0.5, 99.5))
+            data = np.clip(data, lo, hi)
+            if hi > lo:
+                data = (data - lo) / (hi - lo)
+            mean, std = data.mean(), data.std()
+            if std > 0:
+                data = (data - mean) / std
+            prepared.append(data)
+
     all_patches = []
-    for path in volumes:
-        nii = nib.load(path)
-        data = nii.get_fdata(dtype=np.float32)          # (X, Y, Z)
-        data = np.transpose(data, (2, 1, 0))            # (Z, Y, X)
-        # legacy-нормализация infer_ov.py
-        lo, hi = np.percentile(data, (0.5, 99.5))
-        data = np.clip(data, lo, hi)
-        if hi > lo:
-            data = (data - lo) / (hi - lo)
-        mean, std = data.mean(), data.std()
-        if std > 0:
-            data = (data - mean) / std
+    for data in prepared:
         # случайные центры патчей (с отступом от краёв)
         max_z = max(1, data.shape[0] - patch_shape[0])
         max_y = max(1, data.shape[1] - patch_shape[1])
