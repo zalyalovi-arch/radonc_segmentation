@@ -60,6 +60,29 @@
       </widget>
      </item>
      <item>
+      <widget class="QLabel" name="lblSeg">
+       <property name="text">
+        <string>Сегментация:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="cmbSeg">
+       <property name="minimumSize">
+        <size>
+         <width>220</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="sizeAdjustPolicy">
+        <enum>QComboBox::AdjustToContents</enum>
+       </property>
+       <property name="toolTip">
+        <string>Файл из seg_nnunet: переключайте результаты разных моделей (distilled / int8 / ...) на тех же срезах</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QLabel" name="lblCaseInfo">
        <property name="styleSheet">
         <string notr="true">color: gray</string>

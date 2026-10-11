@@ -25,8 +25,8 @@ https://doi.org/10.37174/2587-7593-2026-9-3-19-26
 | Вкладка | Что делает |
 |---|---|
 | **Работа** | импорт DICOM пациента, запуск инференса, экспорт RTSTRUCT, watch-папка |
-| **Постпроцессинг** | правка масок per-структурными методами (closing, dilate/erode, keep-largest…), Dice/HD95 против GT, шаблоны методов |
-| **Квантизация** | список моделей, бенчмарк точности/скорости двух моделей |
+| **Постпроцессинг** | правка масок per-структурными методами (closing, dilate/erode, keep-largest…), Dice/HD95 против GT, шаблоны методов, переключение сегментаций разных моделей на одних срезах |
+| **Квантизация** | импорт обученного чекпоинта (.pth → OpenVINO IR), тест модели на валидации с гейтом качества, INT8/INT4-квантизация, список моделей, бенчмарк точности/скорости |
 | **Настройки** | устройство, потоки, пути, модель, значения по умолчанию |
 
 Скриншоты — в папке [`_screenshots/`](_screenshots/).
@@ -47,7 +47,8 @@ python setup_env.py
 1. Найдёт conda (Miniconda/Anaconda) в типовых местах; если нет — предложит скачать и установить Miniconda автоматически (спросит подтверждение).
 2. Создаст окружение `nnunet_env` (Python 3.10).
 3. Поставит зависимости из `requirements.txt` и сам пакет (`pip install -e .`, обычный pip, ~10-20 минут).
-4. Проверит окружение и подстроит настройки под железо (потоки, накопитель).
+4. Поставит опциональные пакеты квантизации из `requirements-quantization.txt` (torch CPU, nncf и др., ~2 ГБ) — нужны только для импорта/квантизации своей модели; сбой этого шага не фатален.
+5. Проверит окружение и подстроит настройки под железо (потоки, накопитель).
 
 Повторный запуск безопасен — готовые шаги пропускаются.
 
@@ -101,18 +102,31 @@ models\
 
 После того как положили модель — GUI подхватит её сама (вкладка «Настройки»), или проверьте `MODEL`/`MODEL_NAME` в `settings.ini`.
 
-### Обучение своей модели
+### Добавление своей модели (обучение/дистилляция) через GUI
 
-Обучение nnUNet и подготовка весов — ручной этап, автоматизации нет. Требуется GPU и знания nnUNet v2. Состав шагов:
+Единственный ручной шаг — обучить модель и скачать чекпоинт (например, после
+дистилляции на Kaggle: Output ядра → `checkpoint_best.pth`, рядом полезен
+`plans.json` из того же Output). Дальше всё в GUI, вкладка **Квантизация**:
 
-1. Обучить nnUNet v2 (5 фолдов) на своём датасете — стандартный процесс [nnUNet documentation](https://github.com/MIC-DKFZ/nnUNet).
-2. Экспорт PyTorch → ONNX → OpenVINO IR:
-   `python -m radonc_segmentation.quantization.openvino_converter`.
-3. INT8-квантизация (NNCF): `python -m radonc_segmentation.quantization.quantize_ov`.
-4. Разложить веса по фолдам в `models\<MODEL_NAME>\<MODEL>\fold_*\`.
+| Шаг | Действие в программе |
+|---|---|
+| 0-1. Импорт → OpenVINO IR (FP32) | Группа «Импорт обученной модели»: укажите `checkpoint_best.pth` (или `.zip`/папку из Output), имя модели (напр. `distilled`) → **Импортировать и экспортировать**. Результат: `models\<анатомия>\<имя>\fold_*\model.xml`. |
+| 2-3. Тест FP32 + гейт качества | Группа «Тест модели на валидации»: модель `<анатомия>/<имя>`, эталон — рабочая модель, валидационный кейс → **Запустить тест**. Гейт: Dice(mean) ≥ 0.8485, малые структуры (Lens/Cochlea/TMJ) не хуже −0.03 относительно эталона. |
+| 4. INT8-квантизация | Группа «Параметры квантизации»: источник — папка импортированной модели, имя `headandneck/distilled_int8` → **Квантизовать**. |
+| 5. Тест INT8 | Ещё раз «Тест модели на валидации» с моделью `headandneck/distilled_int8`. |
+| 6. Визуальная проверка | Вкладка **Постпроцессинг** → кейс `[валидация]` → в списке «Сегментация» переключайте модели (distilled / int8) и сравнивайте контуры с GT на срезах — особенно мелкие структуры. |
+| 7. Внедрение | Бенчмарк скорости (внизу вкладки «Квантизация»), затем вкладка **Настройки** → `MODEL` = `headandneck/distilled_int8` → **Сохранить**. |
 
-Пакеты для этого: экстры квантизации
-`python -m pip install -e .[quantization] --extra-index-url https://download.pytorch.org/whl/cpu`.
+Тот же поток скриптами (без GUI):
+
+```bat
+python -m radonc_segmentation.quantization.import_checkpoint --src checkpoint_best.pth --name distilled --folds 0
+python -m radonc_segmentation.quantization.validate_model --model headandneck/distilled --reference headandneck/original --case validation_DICOM_0001 --folds 0
+python -m radonc_segmentation.quantization.quantize_ov --source models\headandneck\distilled --name headandneck/distilled_int8 --mode int8
+```
+
+Пакеты импорта/квантизации ставит `setup_env.py` (шаг 4); вручную:
+`python -m pip install -r requirements-quantization.txt`.
 
 ## Структура проекта
 
@@ -124,6 +138,7 @@ models\
 ├── nnunet_gui_pyside.spec     ← рецепт сборки exe (PyInstaller)
 ├── settings.example.ini       ← шаблон настроек (копируйте в settings.ini)
 ├── requirements.txt           ← зависимости пайплайна и GUI
+├── requirements-quantization.txt ← опц. пакеты импорта/квантизации (torch, nncf)
 ├── pyproject.toml             ← метаданные пакета (pip install -e ., экстры)
 ├── models\                    ← СЮДА кладутся веса (пустая, см. example.txt)
 ├── patients\                  ← данные пациентов (создаётся при импорте)
@@ -149,7 +164,7 @@ models\
 │   ├── env_check.py           ← проверка окружения (используется при старте)
 │   ├── check_devices.py       ← список устройств OpenVINO
 │   ├── aligned\               ← вариант инференса, выровненный по обучению
-│   ├── quantization\          ← экспорт/квантизация своей модели
+│   ├── quantization\          ← импорт .pth → IR, тест модели (Dice-гейт), INT8-квантизация, бенчмарк
 │   ├── external_baselines\    ← сравнение с TotalSegmentator (справочно)
 │   ├── postprocess_experiment.py ← исследование постпроцессинга (CLI)
 │   ├── postprocess_viewer.py  ← старый tkinter-вьюер (справочник)

@@ -28,6 +28,9 @@ except ImportError:  # python < 3.8 — не поддерживаем
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_DIR = os.path.dirname(_THIS_DIR)
 REQ_PATH = os.path.join(_PROJECT_DIR, "requirements.txt")
+# опциональные пакеты (импорт .pth -> IR, INT8-квантизация): отсутствие
+# НЕ мешает инференсу, поэтому проверяются отдельно и без кода ошибки
+QUANT_REQ_PATH = os.path.join(_PROJECT_DIR, "requirements-quantization.txt")
 
 # Дистрибутивы, без которых скрипты падают сразу (имена как в requirements.txt).
 # Этого набора достаточно, чтобы «предупредить заранее» любой входной скрипт.
@@ -172,6 +175,25 @@ def check(critical=None):
     return problems, checked, py_note
 
 
+def check_optional(path=QUANT_REQ_PATH):
+    """(problems, total) по requirements-quantization.txt. Проблемы носят
+    информационный характер: без этих пакетов не работают только
+    «Импорт модели»/«Квантизация», инференс работает."""
+    if not os.path.isfile(path):
+        return [], 0
+    problems = []
+    reqs = parse_requirements(path)
+    for name, spec in reqs:
+        installed = _installed_version(name)
+        if installed is None:
+            problems.append({"name": name, "required": spec or "?",
+                             "installed": None, "status": "missing"})
+        elif spec and not _spec_ok(spec, installed):
+            problems.append({"name": name, "required": spec,
+                             "installed": installed, "status": "version"})
+    return problems, len(reqs)
+
+
 def ensure_ready(critical=None, exit_on_problem=True, log=print):
     """Быстрая проверка перед запуском скрипта. Возвращает список проблем (пустой — ОК).
     При проблемах печатает понятное сообщение; по умолчанию завершает скрипт."""
@@ -218,6 +240,17 @@ def main():
     else:
         print()
         print(_INSTALL_HINT)
+
+    # опциональные пакеты квантизации — информационно, на код возврата не влияют
+    q_problems, q_total = check_optional()
+    if q_total:
+        if q_problems:
+            print(f"\nОпционально (квантизация/импорт .pth): не хватает {len(q_problems)} из {q_total}: "
+                  + ", ".join(p["name"] for p in q_problems))
+            print("  Установка: python -m pip install -r requirements-quantization.txt\n"
+                  "  (без них инференс работает, но «Импорт модели»/«Квантизация» в GUI — нет)")
+        else:
+            print(f"Опциональные пакеты квантизации ({q_total}): все на месте.")
 
     if args.json:
         print("__JSON__" + json.dumps({

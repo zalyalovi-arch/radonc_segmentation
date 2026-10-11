@@ -78,6 +78,7 @@ class PostprocessTab(QWidget):
         self.case = None
         self.selected_label = None
         self._cases = []
+        self._segs = []         # сегментации загруженного кейса (разные модели)
         self._metrics_cache = {}  # {label: (d0, h0, d1, h1, vol0, vol1)}
 
         # дебаунс перерисовки при движении слайдера
@@ -124,6 +125,7 @@ class PostprocessTab(QWidget):
     def _alias_widgets(self):
         """Создаёт атрибуты self.widget_name для совместимости со старым кодом."""
         self.cmbCases = self._ui_get("cmbCases")
+        self.cmbSeg = self._ui_get("cmbSeg")
         self.btnRefreshCases = self._ui_get("btnRefreshCases")
         self.btnLoadCase = self._ui_get("btnLoadCase")
         self.lblCaseInfo = self._ui_get("lblCaseInfo")
@@ -158,6 +160,7 @@ class PostprocessTab(QWidget):
     def _connect(self):
         self.btnRefreshCases.clicked.connect(self._refresh_cases)
         self.btnLoadCase.clicked.connect(self._load_case)
+        self.cmbSeg.currentTextChanged.connect(self._on_seg_changed)
         self.sliderSlice.valueChanged.connect(lambda _: self._redraw_timer.start())
         self.sliderSlice.sliderReleased.connect(self.redraw)
         self.cmbWindow.currentTextChanged.connect(lambda _: self.redraw())
@@ -183,18 +186,27 @@ class PostprocessTab(QWidget):
     # ---------- поиск кейсов ----------
 
     def _scan_cases(self):
+        """(заголовок, КТ, сегментация по умолчанию, GT, [все сегментации])"""
         cases = []
         pdir = config.patients_dir()
         if os.path.isdir(pdir):
             for d in sorted(os.listdir(pdir)):
                 ct = os.path.join(pdir, d, "nnunet_input", f"{d}_0000.nii.gz")
-                segs = sorted(glob.glob(os.path.join(pdir, d, "seg_nnunet", f"{d}*.nii.gz")))
+                segs = sorted(glob.glob(os.path.join(pdir, d, "seg_nnunet", "*.nii.gz")))
                 if os.path.isfile(ct) and segs:
-                    cases.append((f"[пациент] {d}", ct, segs[0], None))
+                    # по умолчанию <PID>.nii.gz, затем остальные (модели/варианты)
+                    segs.sort(key=lambda p: (os.path.basename(p) != f"{d}.nii.gz",
+                                             os.path.basename(p)))
+                    cases.append((f"[пациент] {d}", ct, segs[0], None, segs))
+        vdir = config.validation_cases_dir()
         for case, img, gt in config.validation_cases():
-            seg = os.path.join(config.validation_cases_dir(), case, "seg_nnunet", f"{case}.nii.gz")
-            if os.path.isfile(seg):
-                cases.append((f"[валидация] {case}" + (" +GT" if gt else ""), img, seg, gt))
+            segs = sorted(glob.glob(os.path.join(vdir, case, "seg_nnunet", "*.nii.gz")))
+            if not segs:
+                continue
+            # по умолчанию канонический <кейс>.nii.gz (последний тест модели)
+            segs.sort(key=lambda p: (os.path.basename(p) != f"{case}.nii.gz",
+                                     os.path.basename(p)))
+            cases.append((f"[валидация] {case}" + (" +GT" if gt else ""), img, segs[0], gt, segs))
         return cases
 
     def _refresh_cases(self):
@@ -208,12 +220,10 @@ class PostprocessTab(QWidget):
         idx = self.cmbCases.currentIndex()
         if idx < 0 or idx >= len(self._cases):
             return
-        name, ct_path, seg_path, gt_path = self._cases[idx]
+        name, ct_path, seg_path, gt_path, segs = self._cases[idx]
         self.busy("Загрузка...")
         try:
             self.ct, self.spacing = _read_nifti_zyx(ct_path)
-            self.base_seg, _ = _read_nifti_zyx(seg_path)
-            self.base_seg = self.base_seg.astype(np.uint8)
             self.gt = None
             if gt_path:
                 self.gt, _ = _read_nifti_zyx(gt_path)
@@ -221,6 +231,21 @@ class PostprocessTab(QWidget):
         except Exception as e:
             self.busy(None)
             QMessageBox.critical(self, "Постпроцессинг", f"Ошибка загрузки: {e}")
+            return
+        # список сегментаций кейса (разные модели) — переключаются комбобоксом
+        self._segs = segs or [seg_path]
+        self.cmbSeg.blockSignals(True)
+        self.cmbSeg.clear()
+        self.cmbSeg.addItems([os.path.basename(s) for s in self._segs])
+        if seg_path in self._segs:
+            self.cmbSeg.setCurrentIndex(self._segs.index(seg_path))
+        self.cmbSeg.blockSignals(False)
+        try:
+            self.base_seg, _ = _read_nifti_zyx(self._segs[self.cmbSeg.currentIndex()])
+            self.base_seg = self.base_seg.astype(np.uint8)
+        except Exception as e:
+            self.busy(None)
+            QMessageBox.critical(self, "Постпроцессинг", f"Ошибка загрузки сегментации: {e}")
             return
         self.case = name
         self.chains = {}
@@ -231,12 +256,36 @@ class PostprocessTab(QWidget):
         self.sliderSlice.setMaximum(self.ct.shape[0] - 1)
         self.sliderSlice.setValue(self.ct.shape[0] // 2)
         gt_note = ", GT есть" if self.gt is not None else ", GT нет (метрики недоступны)"
+        seg_note = f", сегментаций: {len(self._segs)}" if len(self._segs) > 1 else ""
         self.lblCaseInfo.setStyleSheet("")
         self.lblCaseInfo.setText(
-            f"{name}: {self.ct.shape}, spacing {tuple(round(s, 2) for s in self.spacing)}{gt_note}")
+            f"{name}: {self.ct.shape}, spacing {tuple(round(s, 2) for s in self.spacing)}"
+            f"{gt_note}{seg_note}")
         self._fill_organ_list()
         self.busy(None)
         self.redraw()
+
+    def _on_seg_changed(self):
+        """Переключение сегментации кейса (другая модель/вариант) без перечтения КТ."""
+        if self.ct is None or not getattr(self, "_segs", None):
+            return
+        idx = self.cmbSeg.currentIndex()
+        if idx < 0 or idx >= len(self._segs):
+            return
+        self.busy("Загрузка сегментации...")
+        try:
+            self.base_seg, _ = _read_nifti_zyx(self._segs[idx])
+            self.base_seg = self.base_seg.astype(np.uint8)
+        except Exception as e:
+            self.busy(None)
+            QMessageBox.critical(self, "Постпроцессинг", f"Ошибка загрузки сегментации: {e}")
+            return
+        self.chains = {}
+        self.work_seg = self.base_seg.copy()
+        self._metrics_cache.clear()
+        self.busy(None)
+        self.redraw()
+        self._update_metrics()
 
     def busy(self, msg):
         if msg:

@@ -54,7 +54,7 @@ dev = [
 radonc-gui = "gui.main:main"
 
 [project.scripts]
-radonc-pipeline = "radonc_segmentation.pipeline:cli_main"
+radonc-pipeline = "radonc_segmentation.pipeline:main"
 
 [tool.setuptools]
 # gui и radonc_segmentation лежат в корне репозитория (не src-layout):

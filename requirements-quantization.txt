@@ -1,0 +1,23 @@
+# ============================================================
+# requirements-quantization.txt — ОПЦИОНАЛЬНЫЕ пакеты для работы
+# с моделями: импорт .pth-чекпоинта (Kaggle) -> OpenVINO IR и
+# INT8-квантизация (вкладка «Квантизация» GUI).
+# Для инференса готовой модели они не нужны.
+#
+#   python -m pip install -r requirements-quantization.txt
+#
+# torch ставится с официального индекса PyTorch (CPU-сборка) —
+# строка --extra-index-url ниже; обычный pip, проверено на Python 3.10.
+# Ставятся автоматически при запуске setup_env.py.
+# ============================================================
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# --- экспорт .pth -> ONNX -> OpenVINO IR ---
+torch==2.8.0+cpu
+onnx==1.17.0
+dynamic_network_architectures==0.4.2
+
+# --- INT8-квантизация (NNCF) ---
+nncf==2.19.0
+jstyleson==0.0.2
+onnxruntime>=1.20.0

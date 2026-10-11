@@ -149,6 +149,19 @@ class MainWindow(QMainWindow):
         self.btnBenchmark = self._ui_get("btnBenchmark")
         self.btnQuantize = self._ui_get("btnQuantize")
         self.btnQuantList = self._ui_get("btnQuantList")
+        # группа импорта обученной модели (.pth -> IR) и теста на валидации
+        self.entryImportSrc = self._ui_get("entryImportSrc")
+        self.btnBrowseImportSrc = self._ui_get("btnBrowseImportSrc")
+        self.entryImportPlans = self._ui_get("entryImportPlans")
+        self.btnBrowseImportPlans = self._ui_get("btnBrowseImportPlans")
+        self.entryImportName = self._ui_get("entryImportName")
+        self.entryImportFolds = self._ui_get("entryImportFolds")
+        self.btnImportModel = self._ui_get("btnImportModel")
+        self.cmbTestModel = self._ui_get("cmbTestModel")
+        self.cmbTestRef = self._ui_get("cmbTestRef")
+        self.cmbTestCase = self._ui_get("cmbTestCase")
+        self.entryTestFolds = self._ui_get("entryTestFolds")
+        self.btnTestModel = self._ui_get("btnTestModel")
         # Группы настроек (динамические строки создаются кодом)
         self.groupDevice = self._ui_get("groupDevice")
         self.groupInference = self._ui_get("groupInference")
@@ -191,9 +204,9 @@ class MainWindow(QMainWindow):
         self.entryStride.setText(str(config.STEP_SIZE_RATIO))
         self.lblWatchDir.setText(config.WATCH_DIR)
         self.lblQuantIntro.setText(
-            f"Создание новой (квантованной) версии модели из имеющейся.\n"
+            f"Полный цикл модели: импорт чекпоинта (.pth) → тест на валидации → квантизация → бенчмарк.\n"
             f"Папка моделей: {config.MODELS_ROOT}\n"
-            "Источник только читается; результат — новая подпапка, доступная для инференса.")
+            "Активация — вкладка «Настройки» (MODEL); визуальная проверка — «Постпроцессинг».")
         self.entryQuantSource.setText(os.path.join(config.MODELS_ROOT, config.MODEL))
         self._update_lbl_info()
         self.lblSettingsIntro.setText(
@@ -204,6 +217,7 @@ class MainWindow(QMainWindow):
             combo.addItems(models or ["original"])
         self.cmbBenchA.setCurrentText("original" if "original" in models else str(config.MODEL))
         self.cmbBenchB.setCurrentText(str(config.MODEL))
+        self._refresh_test_combos()
         self.sv[("model", "MODEL")][0].setCurrentText(str(config.MODEL))
         if _POST_OK:
             self.cmbPostTpl.setPlaceholderText("— без постобработки —")
@@ -226,6 +240,11 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, title, initial or "")
         if folder:
             line_edit.setText(folder)
+
+    def _browse_file(self, line_edit, title, initial=None, flt=None):
+        f, _flt = QFileDialog.getOpenFileName(self, title, initial or "", flt or "")
+        if f:
+            line_edit.setText(f)
 
     def _set_buttons(self, running):
         state = not running
@@ -310,6 +329,12 @@ class MainWindow(QMainWindow):
         self.btnQuantize.clicked.connect(self._run_quantize)
         self.btnQuantList.clicked.connect(self._quant_list)
         self.btnBenchmark.clicked.connect(self._run_benchmark)
+        self.btnBrowseImportSrc.clicked.connect(self._browse_import_src)
+        self.btnBrowseImportPlans.clicked.connect(
+            lambda: self._browse_file(self.entryImportPlans, "Файл plans.json",
+                                      flt="JSON (*.json);;Все файлы (*.*)"))
+        self.btnImportModel.clicked.connect(self._run_import_model)
+        self.btnTestModel.clicked.connect(self._run_test_model)
         # вкладка «Настройки»
         self.btnSaveSettings.clicked.connect(self._save_settings)
         self.btnCheckDevices.clicked.connect(self._check_devices)
@@ -525,14 +550,132 @@ class MainWindow(QMainWindow):
 
     # ================= ВКЛАДКА «КВАНТИЗАЦИЯ» =================
 
+    def _browse_import_src(self):
+        f, _flt = QFileDialog.getOpenFileName(
+            self, "Чекпоинт модели (checkpoint_*.pth или .zip из Kaggle Output)",
+            "", "Чекпоинт/архив (*.pth *.zip);;Все файлы (*.*)")
+        if f:
+            self.entryImportSrc.setText(f)
+
+    def _run_import_model(self):
+        src = self.entryImportSrc.text().strip()
+        name = self.entryImportName.text().strip()
+        if not src or not (os.path.isfile(src) or os.path.isdir(src)):
+            QMessageBox.critical(self, "Ошибка",
+                                 f"Не найден файл/папка чекпоинта:\n{src}\n"
+                                 "Укажите checkpoint_*.pth, .zip из Kaggle Output "
+                                 "или папку с fold_N\\.")
+            return
+        if not name or not re.fullmatch(r"[A-Za-z0-9_\-]+", name):
+            QMessageBox.critical(self, "Ошибка",
+                                 "Имя модели: латиница/цифры/_/- (напр. distilled)")
+            return
+        try:
+            cmd = self._python_cmd("radonc_segmentation.quantization.import_checkpoint",
+                                   "--src", src, "--name", name)
+        except RuntimeError as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
+            return
+        plans = self.entryImportPlans.text().strip()
+        if plans:
+            cmd += ["--plans", plans]
+        folds = self.entryImportFolds.text().strip()
+        if folds:
+            cmd += ["--folds", folds]
+
+        def after(ok, title):
+            if ok:
+                self._refresh_model_combo()
+                self.entryQuantSource.setText(
+                    os.path.join(config.MODELS_ROOT, config.MODEL_NAME, name))
+                QMessageBox.information(
+                    self, "Импорт модели",
+                    f"Модель \"{config.MODEL_NAME}/{name}\" экспортирована в OpenVINO IR.\n"
+                    "Дальше: «Тест модели на валидации» (ниже) — гейт качества,\n"
+                    "затем INT8-квантизация этой модели.")
+            else:
+                QMessageBox.critical(
+                    self, "Импорт модели",
+                    "Ошибка импорта/экспорта — см. лог.\n"
+                    "Если в логе «Отсутствуют пакеты» — установите зависимости\n"
+                    "квантизации: pip install -e .[quantization] (или python setup_env.py).")
+
+        self._start_job(f"Импорт модели {name} (.pth → IR FP32)", [cmd], on_done=after)
+
+    def _refresh_test_combos(self):
+        models = config.available_models()
+        for combo in (self.cmbTestModel, self.cmbTestRef):
+            keep = combo.currentText()
+            combo.blockSignals(True)
+            combo.clear()
+            if combo is self.cmbTestRef:
+                combo.addItem("— нет —")
+            combo.addItems(models or [str(config.MODEL)])
+            if keep:
+                combo.setCurrentText(keep)
+            combo.blockSignals(False)
+        cases = [c for c, _img, _gt in config.validation_cases()]
+        keep_case = self.cmbTestCase.currentText()
+        self.cmbTestCase.blockSignals(True)
+        self.cmbTestCase.clear()
+        self.cmbTestCase.addItems(cases)
+        if keep_case in cases:
+            self.cmbTestCase.setCurrentText(keep_case)
+        self.cmbTestCase.blockSignals(False)
+
+    def _last_verdict(self):
+        """Последний «ВЕРДИКТ: ...» из лога (для окна после теста)."""
+        tail = self.logText.toPlainText()[-4000:]
+        found = re.findall(r"ВЕРДИКТ: .+", tail)
+        return found[-1].strip() if found else None
+
+    def _run_test_model(self):
+        model = self.cmbTestModel.currentText().strip()
+        if not model or model.startswith("—"):
+            QMessageBox.critical(self, "Ошибка",
+                                 "Нет модели для теста — сначала импортируйте .pth (выше).")
+            return
+        case = self.cmbTestCase.currentText().strip()
+        if not case:
+            QMessageBox.critical(self, "Ошибка",
+                                 "Нет валидационных кейсов (validation\\<анатомия>\\<кейс>).")
+            return
+        try:
+            cmd = self._python_cmd("radonc_segmentation.quantization.validate_model",
+                                   "--model", model, "--case", case)
+        except RuntimeError as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
+            return
+        ref = self.cmbTestRef.currentText().strip()
+        if ref and not ref.startswith("—"):
+            cmd += ["--reference", ref]
+        folds = self.entryTestFolds.text().strip()
+        if folds:
+            cmd += ["--folds", folds]
+
+        def after(ok, title):
+            if ok:
+                if _POST_OK:
+                    self.post_tab._refresh_cases()
+                verdict = self._last_verdict()
+                QMessageBox.information(
+                    self, "Тест модели",
+                    (verdict or "Тест завершён.") +
+                    "\n\nДетали по органам — в логе; сегмент доступен на вкладке «Постпроцессинг».")
+            else:
+                QMessageBox.critical(self, "Тест модели", "Ошибка теста — см. лог.")
+
+        self._start_job(f"Тест {model} на {case}", [cmd], on_done=after)
+
     def _run_quantize(self):
         source = self.entryQuantSource.text().strip()
         name = self.entryQuantName.text().strip()
         if not source or not os.path.isdir(source):
             QMessageBox.critical(self, "Ошибка", f"Папка источника не найдена:\n{source}")
             return
-        if not name or not re.fullmatch(r"[A-Za-z0-9_.\-]+", name):
-            QMessageBox.critical(self, "Ошибка", "Имя новой модели: латиница/цифры/./_/- (напр. int8_exp1, int8_v1.0)")
+        if not name or not re.fullmatch(r"[A-Za-z0-9_./\-]+", name):
+            QMessageBox.critical(self, "Ошибка",
+                                 "Имя новой модели: латиница/цифры/./_/- (напр. headandneck/distilled_int8)")
             return
         try:
             cmd = self._python_cmd("radonc_segmentation.quantization.quantize_ov",
@@ -678,6 +821,7 @@ class MainWindow(QMainWindow):
             combo.addItems(models or [str(config.MODEL)])
             if current in models:
                 combo.setCurrentText(current)
+        self._refresh_test_combos()
         self._log(f"[GUI] Модели в {config.MODELS_ROOT}: {', '.join(models) or 'нет'}\n")
 
     def _save_settings(self):

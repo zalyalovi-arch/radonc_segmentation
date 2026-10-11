@@ -376,9 +376,167 @@
             <string notr="true">color: gray</string>
            </property>
            <property name="text">
-            <string>Создание новой (квантованной) версии модели из имеющейся.</string>
+            <string>Полный цикл модели: импорт чекпоинта (.pth) → тест на валидации → квантизация → бенчмарк.
+Активация модели — на вкладке «Настройки» (MODEL), визуальная проверка — на вкладке «Постпроцессинг».</string>
            </property>
           </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="groupImport">
+           <property name="title">
+            <string>Импорт обученной модели (.pth → OpenVINO IR FP32)</string>
+           </property>
+           <layout class="QGridLayout" name="gridImport" columnstretch="0,1,0">
+            <item row="0" column="0">
+             <widget class="QLabel" name="lblImportSrc">
+              <property name="text">
+               <string>Чекпоинт (.pth / .zip / папка):</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLineEdit" name="entryImportSrc">
+              <property name="placeholderText">
+               <string>checkpoint_best.pth из Output ядра Kaggle</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <widget class="QPushButton" name="btnBrowseImportSrc">
+              <property name="text">
+               <string>Обзор...</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="lblImportPlans">
+              <property name="text">
+               <string>plans.json (необязательно):</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QLineEdit" name="entryImportPlans">
+              <property name="placeholderText">
+               <string>найдётся автоматически рядом с чекпоинтом</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <widget class="QPushButton" name="btnBrowseImportPlans">
+              <property name="text">
+               <string>Обзор...</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="lblImportName">
+              <property name="text">
+               <string>Имя модели:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLineEdit" name="entryImportName">
+              <property name="maximumSize">
+               <size>
+                <width>220</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="placeholderText">
+               <string>distilled</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="2">
+             <widget class="QLabel" name="lblImportNameHint">
+              <property name="styleSheet">
+               <string notr="true">color: gray</string>
+              </property>
+              <property name="text">
+               <string>результат: models\&lt;анатомия&gt;\&lt;имя&gt;</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="lblImportFolds">
+              <property name="text">
+               <string>Фолды:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QLineEdit" name="entryImportFolds">
+              <property name="maximumSize">
+               <size>
+                <width>220</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="placeholderText">
+               <string>все найденные</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="2">
+             <widget class="QLabel" name="lblImportFoldsHint">
+              <property name="styleSheet">
+               <string notr="true">color: gray</string>
+              </property>
+              <property name="text">
+               <string>напр. 0</string>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="0" colspan="3">
+             <widget class="QLabel" name="lblImportHelp">
+              <property name="styleSheet">
+               <string notr="true">color: gray</string>
+              </property>
+              <property name="text">
+               <string>Скачайте checkpoint_best.pth (и plans.json) из Output ядра Kaggle и укажите здесь.
+Модель скопируется в models\_src\ и экспортируется в OpenVINO IR (FP32) — шаги 0-1 из FINAL_STEPS.md.
+Нужны пакеты [quantization] (torch и др.) — их ставит setup_env.py.</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="layImportBtns">
+           <item>
+            <widget class="QPushButton" name="btnImportModel">
+             <property name="text">
+              <string>Импортировать и экспортировать</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="lblImportAfter">
+             <property name="styleSheet">
+              <string notr="true">color: gray</string>
+             </property>
+             <property name="text">
+              <string>далее: «Тест модели» ниже, затем квантизация</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="spacerImportBtns">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
          </item>
          <item>
           <widget class="QGroupBox" name="groupQuantParams">
@@ -519,6 +677,100 @@ int8_weights / int4_weights — сжатие только весов, без к�
             </spacer>
            </item>
           </layout>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="groupTest">
+           <property name="title">
+            <string>Тест модели на валидации (инференс + Dice-гейт)</string>
+           </property>
+           <layout class="QGridLayout" name="gridTest" columnstretch="0,1,0,1">
+            <item row="0" column="0" colspan="4">
+             <widget class="QLabel" name="lblTestIntro">
+              <property name="styleSheet">
+               <string notr="true">color: gray</string>
+              </property>
+              <property name="text">
+               <string>Прогоняет модель на валидационном кейсе, считает Dice по органам против GT и проверяет гейт:
+Dice(mean) ≥ 0.8485, малые структуры (Lens/Cochlea/TMJ) не хуже −0.03 относительно эталона.
+Сегмент пишется в validation\&lt;анатомия&gt;\&lt;кейс&gt;\seg_nnunet и открывается на вкладке «Постпроцессинг».</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="lblTestModel">
+              <property name="text">
+               <string>Модель:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QComboBox" name="cmbTestModel"/>
+            </item>
+            <item row="1" column="2">
+             <widget class="QLabel" name="lblTestCase">
+              <property name="text">
+               <string>Кейс:</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="3">
+             <widget class="QComboBox" name="cmbTestCase"/>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="lblTestRef">
+              <property name="text">
+               <string>Эталон (дельты):</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QComboBox" name="cmbTestRef"/>
+            </item>
+            <item row="2" column="2">
+             <widget class="QLabel" name="lblTestFolds">
+              <property name="text">
+               <string>Фолды:</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="3">
+             <widget class="QLineEdit" name="entryTestFolds">
+              <property name="maximumSize">
+               <size>
+                <width>60</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="placeholderText">
+               <string>все</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0" colspan="2">
+             <widget class="QPushButton" name="btnTestModel">
+              <property name="text">
+               <string>Запустить тест</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="2" colspan="2">
+             <widget class="QLabel" name="lblTestAfter">
+              <property name="styleSheet">
+               <string notr="true">color: gray</string>
+              </property>
+              <property name="text">
+               <string>вердикт гейта появится в логе и в окне по завершении</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
          </item>
          <item>
           <widget class="QGroupBox" name="groupBench">

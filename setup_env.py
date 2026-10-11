@@ -77,7 +77,7 @@ def run(cmd, **kw):
 
 
 def install_miniconda():
-    print("\n[1/4] conda не найден. Установить Miniconda автоматически?")
+    print("\n[1/5] conda не найден. Установить Miniconda автоматически?")
     print(f"      (источник: {MINICONDA_URL})")
     answer = input("Введите Д для установки или Enter для выхода: ").strip().lower()
     if answer not in ("д", "d", "да", "yes", "y"):
@@ -116,7 +116,7 @@ def main():
     print(f"requirements.txt: {REQ_PATH}")
 
     # --- 1. conda ---
-    print("\n[1/4] Ищу conda...")
+    print("\n[1/5] Ищу conda...")
     conda = find_conda_exe()
     if conda:
         print(f"  найден: {conda}")
@@ -125,7 +125,7 @@ def main():
         print(f"  установлен: {conda}")
 
     # --- 2. окружение ---
-    print(f"\n[2/4] Проверяю окружение {ENV_NAME} (Python {PYTHON_VERSION})...")
+    print(f"\n[2/5] Проверяю окружение {ENV_NAME} (Python {PYTHON_VERSION})...")
     py = env_python(conda)
     if py:
         print(f"  уже существует: {py}")
@@ -142,7 +142,7 @@ def main():
         print(f"  создано: {py}")
 
     # --- 3. зависимости ---
-    print("\n[3/4] Проверяю зависимости (requirements.txt + пакет)...")
+    print("\n[3/5] Проверяю зависимости (requirements.txt + пакет)...")
     chk = run([py, "-m", "radonc_segmentation.env_check"])
     if chk.returncode == 0:
         print("  все пакеты уже установлены — пропускаю установку.")
@@ -163,8 +163,21 @@ def main():
         if chk.returncode != 0:
             print("[ВНИМАНИЕ] env_check всё ещё находит проблемы — проверьте вывод выше.")
 
-    # --- 4. настройки под железо ---
-    print("\n[4/4] Подстраиваю настройки под железо этого компьютера...")
+    # --- 4. опциональные пакеты квантизации (импорт .pth -> IR, INT8) ---
+    # ~2 ГБ (torch CPU); без них инференс работает, но кнопки «Импорт модели»
+    # и «Квантизация» в GUI — нет. Ошибка установки не фатальна.
+    quant_req = os.path.join(PROJECT_DIR, "requirements-quantization.txt")
+    print("\n[4/5] Пакеты квантизации (requirements-quantization.txt, опционально)...")
+    if os.path.isfile(quant_req):
+        r = run([py, "-m", "pip", "install", "-r", quant_req])
+        if r.returncode != 0:
+            print("[ВНИМАНИЕ] Не удалось установить пакеты квантизации — "
+                  "пропускаю (можно доустановить позже этой же командой).")
+    else:
+        print("  requirements-quantization.txt не найден — пропускаю.")
+
+    # --- 5. настройки под железо ---
+    print("\n[5/5] Подстраиваю настройки под железо этого компьютера...")
     code = ("import config; config.autotune_hardware(force=True); "
             "print('DEVICE=%s NUM_THREADS=%s ACCUMULATOR=%s' % "
             "(config.DEVICE, config.NUM_THREADS, config.ACCUMULATOR))")
