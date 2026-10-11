@@ -69,11 +69,19 @@ class JobWorker(QObject):
         self.finished_job.emit(self.title, rc)
 
     def stop(self):
-        """Убивает текущий запущенный процесс (при закрытии GUI), чтобы
-        скрипт-пайплайн не остался работать бесхозным процессом."""
+        """Убивает ДЕРЕВО текущего запущенного процесса (кнопкой stop или при
+        закрытии GUI), чтобы скрипт-пайплайн не остался работать бесхозным.
+        kill() самого процесса недостаточно: скрипты (pipeline.py,
+        validate_model.py) сами spawn'ят внуков (infer_ov и др.) — осиротевший
+        внук висит с переполненным pipe stdout и никогда не завершается."""
         if self.proc is not None and self.proc.poll() is None:
             try:
-                self.proc.kill()
-                self.proc.wait(timeout=5)
+                if sys.platform == "win32":
+                    # /T — дерево процессов (дети и внуки), /F — принудительно
+                    subprocess.run(["taskkill", "/T", "/F", "/PID", str(self.proc.pid)],
+                                   capture_output=True, timeout=15)
+                else:
+                    self.proc.kill()
+                self.proc.wait(timeout=10)
             except Exception:
                 pass

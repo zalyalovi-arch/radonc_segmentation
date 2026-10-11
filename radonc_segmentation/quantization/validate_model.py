@@ -87,8 +87,14 @@ def _fmt(v):
 
 
 def run_inference(case, img_path, out_path, model_name, args, tmp_dir):
-    """Прогон инференса одной модели; возвращает (total_s, sec_per_patch)."""
-    cmd = [sys.executable, "-m", "radonc_segmentation.infer_ov",
+    """Прогон инференса одной модели; возвращает (total_s, sec_per_patch).
+    Вариант преобработки берётся из settings.ini ([inference] VARIANT):
+    модель надо проверять в тех же условиях, в которых будет работать пайплайн."""
+    if str(config.DEFAULT_VARIANT).lower() == "aligned":
+        module = "radonc_segmentation.aligned.infer_ov_aligned"
+    else:
+        module = "radonc_segmentation.infer_ov"
+    cmd = [sys.executable, "-m", module,
            case, "--input", img_path, "--output", out_path,
            "--force", "--tmp-dir", tmp_dir, "--model", model_name]
     if args.folds:
@@ -152,7 +158,7 @@ def main():
     print(f"Модель:      {test_cfg['name']} (фолды: {test_cfg['folds']})")
     if ref_cfg:
         print(f"Эталон:      {ref_cfg['name']} (фолды: {ref_cfg['folds']})")
-    print(f"Кейсов:      {len(cases)}")
+    print(f"Кейсов:      {len(cases)}; преобработка: {config.DEFAULT_VARIANT}")
 
     out_dir = os.path.join(config.LOG_DIR, "validate")
     os.makedirs(out_dir, exist_ok=True)
