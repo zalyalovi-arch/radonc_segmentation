@@ -369,7 +369,52 @@
         <attribute name="title">
          <string>  Квантизация  </string>
         </attribute>
-        <layout class="QVBoxLayout" name="layQuant">
+        <layout class="QVBoxLayout" name="layQuantPage">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QScrollArea" name="scrollQuant">
+           <property name="widgetResizable">
+            <bool>true</bool>
+           </property>
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <widget class="QWidget" name="quantScrollContents">
+            <property name="geometry">
+             <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>860</width>
+              <height>1000</height>
+             </rect>
+            </property>
+            <layout class="QVBoxLayout" name="layQuant">
+             <property name="spacing">
+              <number>10</number>
+             </property>
+             <property name="leftMargin">
+              <number>8</number>
+             </property>
+             <property name="topMargin">
+              <number>8</number>
+             </property>
+             <property name="rightMargin">
+              <number>8</number>
+             </property>
+             <property name="bottomMargin">
+              <number>8</number>
+             </property>
          <item>
           <widget class="QLabel" name="lblQuantIntro">
            <property name="styleSheet">
@@ -497,7 +542,27 @@
               <property name="text">
                <string>Скачайте checkpoint_best.pth (и plans.json) из Output ядра Kaggle и укажите здесь.
 Модель скопируется в models\_src\ и экспортируется в OpenVINO IR (FP32) — шаги 0-1 из FINAL_STEPS.md.
-Нужны пакеты [quantization] (torch и др.) — их ставит setup_env.py.</string>
+Нужны пакеты квантизации (torch и др.): их ставит setup_env.py или кнопка ниже.</string>
+              </property>
+             </widget>
+            </item>
+            <item row="5" column="0" colspan="2">
+             <widget class="QPushButton" name="btnInstallQuantDeps">
+              <property name="toolTip">
+               <string>Ставит torch (CPU), nncf, onnx и др. из requirements-quantization.txt в окружение nnunet_env</string>
+              </property>
+              <property name="text">
+               <string>Установить пакеты квантизации</string>
+              </property>
+             </widget>
+            </item>
+            <item row="5" column="2">
+             <widget class="QLabel" name="lblQuantDepsHint">
+              <property name="styleSheet">
+               <string notr="true">color: gray</string>
+              </property>
+              <property name="text">
+               <string>если «Импорт модели» сообщает об отсутствии torch (~2 ГБ)</string>
               </property>
              </widget>
             </item>
@@ -877,6 +942,10 @@ Dice(mean) ≥ 0.8485, малые структуры (Lens/Cochlea/TMJ) не х�
             </size>
            </property>
           </spacer>
+         </item>
+            </layout>
+           </widget>
+          </widget>
          </item>
         </layout>
        </widget>

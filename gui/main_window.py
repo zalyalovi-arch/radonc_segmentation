@@ -157,6 +157,7 @@ class MainWindow(QMainWindow):
         self.entryImportName = self._ui_get("entryImportName")
         self.entryImportFolds = self._ui_get("entryImportFolds")
         self.btnImportModel = self._ui_get("btnImportModel")
+        self.btnInstallQuantDeps = self._ui_get("btnInstallQuantDeps")
         self.cmbTestModel = self._ui_get("cmbTestModel")
         self.cmbTestRef = self._ui_get("cmbTestRef")
         self.cmbTestCase = self._ui_get("cmbTestCase")
@@ -334,6 +335,7 @@ class MainWindow(QMainWindow):
             lambda: self._browse_file(self.entryImportPlans, "Файл plans.json",
                                       flt="JSON (*.json);;Все файлы (*.*)"))
         self.btnImportModel.clicked.connect(self._run_import_model)
+        self.btnInstallQuantDeps.clicked.connect(self._install_quant_deps)
         self.btnTestModel.clicked.connect(self._run_test_model)
         # вкладка «Настройки»
         self.btnSaveSettings.clicked.connect(self._save_settings)
@@ -549,6 +551,59 @@ class MainWindow(QMainWindow):
         self._log("<<< watch-папка: остановлена пользователем\n")
 
     # ================= ВКЛАДКА «КВАНТИЗАЦИЯ» =================
+
+    def _quant_req_path(self):
+        """requirements-quantization.txt: в _MEIPASS (встроен в exe), рядом
+        с exe или в корне проекта (dev-запуск)."""
+        cands = []
+        meipass = getattr(sys, "_MEIPASS", "")
+        if meipass:
+            cands.append(os.path.join(meipass, "requirements-quantization.txt"))
+        if _IS_FROZEN:
+            cands.append(os.path.join(os.path.dirname(sys.executable),
+                                      "requirements-quantization.txt"))
+        cands.append(os.path.join(PROJECT_ROOT, "requirements-quantization.txt"))
+        for c in cands:
+            if os.path.isfile(c):
+                return c
+        return None
+
+    def _install_quant_deps(self):
+        """Установка пакетов импорта/квантизации из GUI (без терминала):
+        python окружения -m pip install -r requirements-quantization.txt."""
+        req = self._quant_req_path()
+        if req is None:
+            QMessageBox.critical(
+                self, "Пакеты квантизации",
+                "requirements-quantization.txt не найден (ищу в _MEIPASS, рядом с exe "
+                "и в корне проекта).\nСкачайте репозиторий целиком — файл в его корне.")
+            return
+        answer = QMessageBox.question(
+            self, "Пакеты квантизации",
+            "Установить пакеты импорта/квантизации в окружение nnunet_env?\n"
+            "(torch CPU, onnx, nncf и др. — ~2 ГБ загрузок; без них работают все\n"
+            "функции, кроме «Импорт модели» и «Квантизация»)",
+            QMessageBox.Yes | QMessageBox.No)
+        if answer != QMessageBox.Yes:
+            return
+        try:
+            cmd = self._python_cmd("pip", "install", "-r", req)
+        except RuntimeError as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
+            return
+
+        def after(ok, title):
+            if ok:
+                self._log("[GUI] Пакеты квантизации установлены — кнопка "
+                          "«Импортировать и экспортировать» готова.\n")
+                QMessageBox.information(self, "Пакеты квантизации",
+                                        "Готово. Теперь импортируйте модель (.pth) — кнопка выше.")
+            else:
+                QMessageBox.critical(self, "Пакеты квантизации",
+                                     "Ошибка установки — см. лог (нет интернета или pip ограничен?).")
+
+        self._start_job(f"Установка пакетов квантизации ({os.path.basename(req)})", [cmd],
+                        on_done=after)
 
     def _browse_import_src(self):
         f, _flt = QFileDialog.getOpenFileName(

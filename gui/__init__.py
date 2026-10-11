@@ -9,7 +9,12 @@ _FROZEN = getattr(sys, "frozen", False)
 
 # корень проекта: папка с settings.ini, patients\, models\ и пакетом
 # radonc_segmentation (config.py якорит пути так же — dirname² от __file__)
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _FROZEN:
+    # «дом» exe — папка, где он лежит (рядом ждём settings.ini, models\, ...);
+    # dirname(_MEIPASS) — это %TEMP%, детям туда нельзя (см. child_env)
+    PROJECT_ROOT = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(PROJECT_ROOT, "gui", "ui")
 
 if _FROZEN:
@@ -55,4 +60,7 @@ def child_env():
         meipass = getattr(sys, "_MEIPASS", "")
         if meipass:
             env["PYTHONPATH"] = meipass + os.pathsep + env.get("PYTHONPATH", "")
+        # дети импортируют пакет из _MEIPASS, где settings.ini нет —
+        # config.py читает RADONC_SETTINGS_DIR и якорится к папке exe
+        env["RADONC_SETTINGS_DIR"] = PROJECT_ROOT
     return env

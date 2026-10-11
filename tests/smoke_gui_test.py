@@ -69,11 +69,15 @@ def main():
     win.tabWidget.setCurrentIndex(idx_of(win.tabQuant))
     app.processEvents()
     # новые группы жизненного цикла модели: виджеты есть и заполнены
-    for name in ("groupImport", "entryImportSrc", "entryImportPlans",
+    for name in ("scrollQuant", "groupImport", "entryImportSrc", "entryImportPlans",
                  "entryImportName", "entryImportFolds", "btnImportModel",
+                 "btnInstallQuantDeps",
                  "groupTest", "cmbTestModel", "cmbTestRef", "cmbTestCase",
                  "entryTestFolds", "btnTestModel"):
         assert win._ui[name] is not None, f"нет виджета {name}"
+    # прокрутка: содержимое вкладки имеет свою полную высоту, а не сжато
+    assert win._ui["quantScrollContents"].sizeHint().height() >= 700, \
+        "содержимое «Квантизация» сжато — scroll-область не работает"
     assert win.cmbTestRef.count() >= 1, "cmbTestRef не заполнен (нет пункта «— нет —»)"
     assert win.cmbTestModel.count() >= 1, "cmbTestModel не заполнен"
     shot("tab_quant")

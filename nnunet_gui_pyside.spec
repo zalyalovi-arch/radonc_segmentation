@@ -7,9 +7,10 @@
 #                  затем копирование dist\nnunet_gui.exe в корень)
 #
 # Важно:
-# - .ui файлы В СБОРКУ НЕ ВХОДЯТ: exe читает их из gui\ui\ рядом с собой,
-#   поэтому правки раскладки из Qt Designer подхватываются без пересборки.
-#   (в onefile их кладём в _MEIPASS: datas ниже)
+# - .ui файлы и requirements-quantization.txt кладутся в _MEIPASS (datas ниже):
+#   exe читает раскладки оттуда (gui/__init__.py: UI_DIR=_MEIPASS\gui\ui),
+#   правки .ui требуют пересборки exe ИЛИ лежат рядом с exe в gui\ui\
+#   (fallback-ветка __init__.py).
 # - pyside6-uic.exe (нативный компилятор .ui из пакета PySide6) кладём в
 #   сборку под именем pyside6-uic.exe: loadUiType запускает его из PATH
 #   (PATH дополняет gui/__init__.py через sys._MEIPASS).
@@ -44,6 +45,7 @@ binaries = [(_uic_exe, ".")]
 datas = [
     (os.path.join(ROOT, "gui", "ui"), "gui/ui"),
     (os.path.join(ROOT, "radonc_segmentation"), "radonc_segmentation"),
+    (os.path.join(ROOT, "requirements-quantization.txt"), "."),
 ]
 
 a = Analysis(

@@ -29,6 +29,12 @@ class SettingsValidationError(ConfigError):
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_DIR = os.path.dirname(_THIS_DIR)
 
+# GUI-exe передаёт детям папку, где лежит settings.ini/models/patients
+# (сам exe может лежать там же; без этого дети из _MEIPASS якорятся к %TEMP%)
+_ENV_SETTINGS_DIR = os.environ.get("RADONC_SETTINGS_DIR", "").strip()
+if _ENV_SETTINGS_DIR and os.path.isdir(_ENV_SETTINGS_DIR):
+    _PROJECT_DIR = _ENV_SETTINGS_DIR
+
 # при запуске из exe (PyInstaller) «дом» — папка, где лежит exe:
 # там же ожидаем settings.ini и подпапку scripts
 _FROZEN = getattr(sys, "frozen", False)
@@ -42,10 +48,13 @@ def _settings_base_dir():
     return _exe_dir() if _FROZEN else _PROJECT_DIR
 
 
-# где ищем settings.ini: рядом с exe (если frozen), корень проекта, папка scripts
+# где ищем settings.ini: рядом с exe (если frozen), папка из окружения
+# (GUI-exe -> дети), корень проекта, папка пакета
 _SETTINGS_CANDIDATES = []
 if _FROZEN:
     _SETTINGS_CANDIDATES.append(os.path.join(_exe_dir(), "settings.ini"))
+if _ENV_SETTINGS_DIR:
+    _SETTINGS_CANDIDATES.append(os.path.join(_ENV_SETTINGS_DIR, "settings.ini"))
 _SETTINGS_CANDIDATES += [
     os.path.join(_PROJECT_DIR, "settings.ini"),
     os.path.join(_THIS_DIR, "settings.ini"),

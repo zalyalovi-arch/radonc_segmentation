@@ -199,7 +199,7 @@ python -m radonc_segmentation.quantization.quantize_ov --source models\headandne
 build.bat    :: ~4-5 минут; dist\nnunet_gui.exe → копия в корень
 ```
 
-В exe упакованы PySide6, numpy/scipy, SimpleITK и исходники пакета `radonc_segmentation`. Тяжёлые ML-пакеты (torch, nnunetv2, matplotlib) исключены: инференс выполняет python окружения через subprocess. Из-за этого в exe недоступна вкладка «Постпроцессинг» (matplotlib) — используйте `run_gui.bat`.
+В exe упакованы PySide6, numpy/scipy, SimpleITK и исходники пакета `radonc_segmentation`. Тяжёлые ML-пакеты (torch, nnunetv2, matplotlib) исключены: вся тяжёлая работа (пайплайн, импорт модели, квантизация) выполняется python окружения `nnunet_env` через незаметный subprocess — поэтому в exe доступны и вкладка «Работа», и весь жизненный цикл модели на вкладке «Квантизация» (импорт .pth → IR, тест с гейтом, INT8). Недоступна только вкладка «Постпроцессинг» (matplotlib) — для неё используйте `run_gui.bat`. Пакеты квантизации доустанавливаются кнопкой «Установить пакеты квантизации» на вкладке «Квантизация» (терминал не нужен).
 
 Правки раскладок `gui\ui\*.ui` подхватываются перезапуском GUI без пересборки (`.ui` читаются при старте, не компилируются).
 
