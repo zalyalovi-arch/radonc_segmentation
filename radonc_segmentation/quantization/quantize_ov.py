@@ -36,6 +36,11 @@ import numpy as np
 
 from radonc_segmentation import config
 
+# stdout при запуске из GUI — PIPE с блочной буферизацией: без flush лог GUI
+# молчит всю фазу калибровки и непонятно, идёт процесс или завис.
+import functools
+print = functools.partial(print, flush=True)
+
 # NNCF при импорте пробует загрузить TF-бэкенд; TensorFlow в этом окружении
 # сломан (скампилирован под NumPy 1.x, стоит NumPy 2.2) и валит весь импорт.
 # None в sys.modules превращает `import tensorflow` в ImportError, который
@@ -161,6 +166,20 @@ def build_calibration(n_volumes, patches_per_volume, seed=42):
             patch = data[z:z + patch_shape[0], y:y + patch_shape[1], x:x + patch_shape[2]]
             if patch.shape == tuple(patch_shape):
                 all_patches.append(patch.astype(np.float32))
+    # RAM-ограничение: NNCF держит статистики всех патчей в ОЗУ, и на
+    # машинах с <8 ГБ свободно большая калибровка уходит в своп — фаза
+    # статистики растягивается с минут до часов (2026-10-11, 7.7 ГБ ноут).
+    try:
+        import psutil
+        avail_gb = psutil.virtual_memory().available / 2**30
+        max_patches = 2 if avail_gb < 2.5 else (4 if avail_gb < 4.5 else 32)
+        if len(all_patches) > max_patches:
+            print(f"ВНИМАНИЕ: свободно ОЗУ {avail_gb:.1f} ГБ — калибровка урезана "
+                  f"с {len(all_patches)} до {max_patches} патчей "
+                  f"(иначе фаза статистики уходит в своп).")
+            all_patches = all_patches[:max_patches]
+    except ImportError:
+        pass
     patches = np.stack(all_patches)[:, np.newaxis, ...]  # (N, 1, Z, Y, X)
     os.makedirs(config.MODELS_ROOT, exist_ok=True)
     np.savez_compressed(cache, patches=patches)
@@ -212,9 +231,13 @@ def patch_hw_config_for_low_bits(bits):
 
 
 def make_calib_dataset(calib_patches):
-    """nncf.Dataset из патчей; каждый элемент — (1,1,Z,Y,X), как вход модели."""
-    items = [p[np.newaxis, ...] for p in calib_patches]
-    return nncf.Dataset(items)
+    """nncf.Dataset из патчей; каждый элемент — (1,1,Z,Y,X), как вход модели.
+    Генератор вместо списка — чтобы в лог GUI стримился прогресс по патчам."""
+    def gen():
+        for i, p in enumerate(calib_patches):
+            print(f"[NNCF] сбор статистики: патч {i + 1}/{len(calib_patches)}")
+            yield p[np.newaxis, ...]
+    return nncf.Dataset(gen())
 
 
 def quantize_one(xml_path, out_dir, mode, calib_patches, weights_bits=4, act_bits=8):
@@ -265,6 +288,24 @@ def quantize_one(xml_path, out_dir, mode, calib_patches, weights_bits=4, act_bit
         compiled = ov.Core().compile_model(m, "CPU")
         res = compiled(np.zeros(inp, dtype=np.float32))
         out_shape = tuple(int(v) for v in compiled.output(0).shape)
+        # Санити-проверка: INT8 vs FP32 на одном из калибровочных патчей.
+        # Ловит «доменный» фейл (квантизация в одном домене преобработки,
+        # инференс в другом) — 2026-10-11 на дистилляте давал Dice 0.14.
+        if calib_patches and mode in ("int8", "int4"):
+            try:
+                src = ov.Core().read_model(xml_path)
+                ref = src(calib_patches[0][np.newaxis])[src.output(0)]
+                out = compiled(calib_patches[0][np.newaxis])[compiled.output(0)]
+                agree = float((ref[0].argmax(0) == out[0].argmax(0)).mean())
+                print(f"   Санити: совпадение argmax квант/FP32 на калибровочном "
+                      f"патче: {agree:.3f}")
+                if agree < 0.9:
+                    print("   !! СОВПАДЕНИЕ < 0.9 — квантизация, вероятно, сломана.")
+                    print("      Домен калибровки должен совпадать с [inference] "
+                          "VARIANT из settings.ini (aligned/legacy).")
+                del ref, out, src
+            except Exception as e:
+                print(f"   Санити-проверка не удалась (не критично): {e}")
         del res, compiled
     except Exception as e:
         raise SystemExit(

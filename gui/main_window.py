@@ -149,6 +149,10 @@ class MainWindow(QMainWindow):
         self.btnBenchmark = self._ui_get("btnBenchmark")
         self.btnQuantize = self._ui_get("btnQuantize")
         self.btnQuantList = self._ui_get("btnQuantList")
+        # статус текущей задачи (над логом): busy-индикатор + стоп
+        self.busyBar = self._ui_get("busyBar")
+        self.lblJobStatus = self._ui_get("lblJobStatus")
+        self.btnStopJob = self._ui_get("btnStopJob")
         # группа импорта обученной модели (.pth -> IR) и теста на валидации
         self.entryImportSrc = self._ui_get("entryImportSrc")
         self.btnBrowseImportSrc = self._ui_get("btnBrowseImportSrc")
@@ -271,6 +275,10 @@ class MainWindow(QMainWindow):
             return
         self._set_buttons(running=True)
         self._log(f"\n>>> {title}\n")
+        self.lblJobStatus.setText(f"Выполняется: {title}")
+        for w in (self.busyBar, self.lblJobStatus, self.btnStopJob):
+            w.setVisible(True)
+        self.btnStopJob.setEnabled(True)
         self.on_job_done_cb = on_done
         self.job_thread = QThread(self)
         self.worker = JobWorker(title, commands=commands, in_process=in_process,
@@ -285,6 +293,9 @@ class MainWindow(QMainWindow):
         ok = rc == 0
         self._set_buttons(running=False)
         self._log(f"<<< {title}: {'ГОТОВО' if ok else f'ОШИБКА (код {rc})'}\n")
+        for w in (self.busyBar, self.lblJobStatus, self.btnStopJob):
+            w.setVisible(False)
+        self.btnStopJob.setEnabled(False)
         self.job_thread.quit()
         self.job_thread.wait(20000)
         self.job_thread = None
@@ -293,6 +304,14 @@ class MainWindow(QMainWindow):
         self.on_job_done_cb = None
         if cb:
             cb(ok, title)
+
+    def _stop_job(self):
+        """Кнопка «Остановить»: убивает дерево процессов текущей задачи."""
+        if not self._busy() or self.worker is None:
+            return
+        self._log(">>> Остановка процесса пользователем…\n")
+        self.btnStopJob.setEnabled(False)
+        self.worker.stop()
 
     # ================= инициализация =================
 
@@ -312,6 +331,10 @@ class MainWindow(QMainWindow):
         self.splitterMain.setStretchFactor(1, 0)
         self.splitterMain.setSizes([620, 180])
         self.btnWatchStop.setEnabled(False)
+        # строка статуса задачи появляется только во время работы
+        self.busyBar.setVisible(False)
+        self.lblJobStatus.setVisible(False)
+        self.btnStopJob.setVisible(False)
 
     def _connect_signals(self):
         # вкладка «Работа»
@@ -340,6 +363,8 @@ class MainWindow(QMainWindow):
         # вкладка «Настройки»
         self.btnSaveSettings.clicked.connect(self._save_settings)
         self.btnCheckDevices.clicked.connect(self._check_devices)
+        # статус задачи над логом
+        self.btnStopJob.clicked.connect(self._stop_job)
 
 
     # ---------- стартовые проверки ----------

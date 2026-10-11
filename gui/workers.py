@@ -7,6 +7,7 @@
 # возврата передаются в GUI-поток сигналами — окно не замирает.
 # ============================================================
 import os
+import re
 import subprocess
 import sys
 import traceback
@@ -53,11 +54,25 @@ class JobWorker(QObject):
                     self.proc = subprocess.Popen(
                         cmd, cwd=self.cwd, env=env,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                        text=True, encoding="utf-8", errors="replace",
-                        bufsize=1, creationflags=CREATE_NO_WINDOW,
+                        bufsize=0, creationflags=CREATE_NO_WINDOW,
                     )
-                    for ln in self.proc.stdout:
-                        self.line.emit(ln)
+                    # Бинарное чтение с разбивкой по \r И \n: tqdm-прогресс-бары
+                    # (квантизация NNCF, инференс) шлют обновления через \r без
+                    # \n — построчный text-read держал бы лог GUI пустым до конца
+                    # всей фазы, и было непонятно, идёт процесс или завис.
+                    buf = b""
+                    while True:
+                        chunk = self.proc.stdout.read(512)
+                        if not chunk:
+                            break
+                        buf += chunk
+                        parts = re.split(b"[\r\n]", buf)
+                        buf = parts.pop()
+                        for part in parts:
+                            if part.strip():
+                                self.line.emit(part.decode("utf-8", errors="replace") + "\n")
+                    if buf.strip():
+                        self.line.emit(buf.decode("utf-8", errors="replace") + "\n")
                     self.proc.wait()
                     if self.proc.returncode != 0:
                         rc = self.proc.returncode
