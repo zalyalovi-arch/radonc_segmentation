@@ -80,6 +80,37 @@ def test_stage_zip_output(models_root, tmp_path):
     assert [f for f, _p in folds] == [0]
     assert os.path.isfile(os.path.join(staged, "fold_0", "checkpoint_best.pth"))
     assert os.path.isfile(os.path.join(staged, "plans.json"))
+    # временная распаковка удаляется после раскладки (экономия диска)
+    assert not os.path.isdir(os.path.join(staged, "_raw"))
+
+
+def test_stage_picks_one_checkpoint_per_fold(models_root, tmp_path):
+    # в Output Kaggle в fold_0 лежат и final, и latest — нужен ОДИН,
+    # приоритет best > final > latest (иначе экспорт перезаписывает сам себя)
+    trainer = tmp_path / "out" / "trainer"
+    d = trainer / "fold_0"
+    d.mkdir(parents=True)
+    (d / "checkpoint_final.pth").write_bytes(b"final")
+    (d / "checkpoint_latest.pth").write_bytes(b"latest")
+    _make_plans(trainer / "plans.json")
+
+    staged, folds = ic.locate_and_stage(str(tmp_path / "out"), "distilled")
+
+    assert folds == [(0, os.path.join(staged, "fold_0", "checkpoint_final.pth"))]
+    assert not os.path.isfile(os.path.join(staged, "fold_0", "checkpoint_latest.pth"))
+
+
+def test_stage_prefers_best_over_final(models_root, tmp_path):
+    trainer = tmp_path / "out" / "trainer"
+    d = trainer / "fold_0"
+    d.mkdir(parents=True)
+    (d / "checkpoint_best.pth").write_bytes(b"best")
+    (d / "checkpoint_final.pth").write_bytes(b"final")
+    _make_plans(trainer / "plans.json")
+
+    staged, folds = ic.locate_and_stage(str(tmp_path / "out"), "distilled")
+
+    assert folds == [(0, os.path.join(staged, "fold_0", "checkpoint_best.pth"))]
 
 
 def test_stage_without_plans_fails_with_instruction(models_root, tmp_path):

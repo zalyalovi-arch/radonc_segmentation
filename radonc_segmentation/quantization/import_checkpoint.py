@@ -25,6 +25,9 @@ import zipfile
 from radonc_segmentation import config
 
 CHECKPOINT_RE = re.compile(r"checkpoint_(best|final|latest)\.pth$", re.IGNORECASE)
+# в папке фолда может лежать несколько чекпоинтов — берём ОДИН (как
+# export_original): best > final > latest
+CHECKPOINT_PRIORITY = ("checkpoint_best.pth", "checkpoint_final.pth", "checkpoint_latest.pth")
 FOLD_RE = re.compile(r"fold_(\d+)$")
 NAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
 
@@ -76,14 +79,15 @@ def _extract_zip(src, dst):
 
 def locate_and_stage(src, name, plans=None):
     """Копирует чекпоинт(ы)+plans.json в models\\_src\\<имя>\\.
-    Возвращает (staged_dir, [(fold, ck_path), ...])."""
+    Возвращает (staged_dir, [(fold, ck_path), ...]) — один чекпоинт на фолд."""
     staged = os.path.join(config.MODELS_ROOT, "_src", name)
     if os.path.isdir(staged):
         print(f"Папка стейджинга уже есть — файлы перезапишутся: {staged}")
     os.makedirs(staged, exist_ok=True)
 
     src = os.path.abspath(src)
-    if os.path.isfile(src) and src.lower().endswith(".zip"):
+    was_zip = os.path.isfile(src) and src.lower().endswith(".zip")
+    if was_zip:
         src = _extract_zip(src, os.path.join(staged, "_raw"))
 
     if os.path.isfile(src) and CHECKPOINT_RE.search(os.path.basename(src)):
@@ -109,33 +113,48 @@ def locate_and_stage(src, name, plans=None):
 
     if os.path.isdir(src):
         # дерево вида nnUNet_results\Dataset...\trainer\fold_N\checkpoint_*.pth
-        folds = []
+        found = []
         for root, _dirs, files in os.walk(src):
             m = FOLD_RE.fullmatch(os.path.basename(root))
             if not m:
                 continue
-            for f in files:
-                if CHECKPOINT_RE.search(f):
-                    folds.append((int(m.group(1)), os.path.join(root, f)))
-        if not folds:
+            cks = [f for f in files if CHECKPOINT_RE.search(f)]
+            if not cks:
+                print(f"  !! в {root} нет checkpoint-файла — пропуск")
+                continue
+            cks.sort(key=lambda f: CHECKPOINT_PRIORITY.index(f.lower())
+                     if f.lower() in CHECKPOINT_PRIORITY else len(CHECKPOINT_PRIORITY))
+            found.append((int(m.group(1)), os.path.join(root, cks[0])))
+        if not found:
             raise SystemExit(f"В {src} не найдено fold_N\\checkpoint_*.pth")
-        for fold, ck in sorted(folds):
+        staged_found = []
+        for fold, ck in sorted(found):
             fold_dir = os.path.join(staged, f"fold_{fold}")
             os.makedirs(fold_dir, exist_ok=True)
             dst_ck = os.path.join(fold_dir, os.path.basename(ck))
             shutil.copy2(ck, dst_ck)
+            # убрать другие чекпоинты, оставшиеся от прошлого импорта
+            for f in os.listdir(fold_dir):
+                other = os.path.join(fold_dir, f)
+                if (CHECKPOINT_RE.search(f)
+                        and os.path.abspath(other) != os.path.abspath(dst_ck)):
+                    os.remove(other)
             print(f"Чекпоинт: {ck} -> {dst_ck}")
+            staged_found.append((fold, dst_ck))
         plans_src = plans
         if plans_src:
             shutil.copy2(plans_src, os.path.join(staged, "plans.json"))
         else:
-            plans_src = _copy_plans(os.path.dirname(sorted(folds)[0][1]), src, staged)
+            plans_src = _copy_plans(os.path.dirname(sorted(found)[0][1]), src, staged)
         if plans_src is None:
             raise SystemExit(
                 "plans.json не найден в дереве исходников.\n"
                 "Укажите его явно:  --plans <путь к plans.json>")
         print(f"plans.json: {plans_src} -> {os.path.join(staged, 'plans.json')}")
-        return staged, sorted(folds)
+        if was_zip:
+            shutil.rmtree(os.path.join(staged, "_raw"), ignore_errors=True)
+            print("Временная распаковка _raw удалена (чекпоинты скопированы)")
+        return staged, staged_found
 
     raise SystemExit(f"Не найден источник (файл .pth/.zip или папка): {src}")
 
