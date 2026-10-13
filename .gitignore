@@ -42,3 +42,4 @@ screenshots_tmp/
 *.swp
 Thumbs.db
 Desktop.ini
+.venv-nnunet/

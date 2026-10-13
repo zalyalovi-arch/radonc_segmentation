@@ -88,20 +88,27 @@ def _fmt(v):
 
 def run_inference(case, img_path, out_path, model_name, args, tmp_dir):
     """Прогон инференса одной модели; возвращает (total_s, sec_per_patch).
-    Вариант преобработки берётся из settings.ini ([inference] VARIANT):
-    модель надо проверять в тех же условиях, в которых будет работать пайплайн."""
-    if str(config.DEFAULT_VARIANT).lower() == "aligned":
-        module = "radonc_segmentation.aligned.infer_ov_aligned"
+    Движок и вариант берутся из settings.ini ([inference] ENGINE/VARIANT):
+    модель надо проверять в тех же условиях, в которых будет работать пайплайн.
+    Для nnunet_native нужен .pth-чекпоинт модели (см. README, «GPU-инференс»)."""
+    engine = str(getattr(args, "engine", None) or config.DEFAULT_ENGINE).lower()
+    if engine == "nnunet_native":
+        module = "radonc_segmentation.native.native_infer"
+        cmd = [sys.executable, "-m", module,
+               case, "--input", img_path, "--output", out_path,
+               "--force", "--model", model_name]
     else:
-        module = "radonc_segmentation.infer_ov"
-    cmd = [sys.executable, "-m", module,
-           case, "--input", img_path, "--output", out_path,
-           "--force", "--tmp-dir", tmp_dir, "--model", model_name]
+        module = ("radonc_segmentation.aligned.infer_ov_aligned"
+                  if str(config.DEFAULT_VARIANT).lower() == "aligned"
+                  else "radonc_segmentation.infer_ov")
+        cmd = [sys.executable, "-m", module,
+               case, "--input", img_path, "--output", out_path,
+               "--force", "--tmp-dir", tmp_dir, "--model", model_name]
     if args.folds:
         cmd += ["--folds", args.folds]
     if args.stride:
         cmd += ["--stride", str(args.stride)]
-    if args.device:
+    if args.device and engine != "nnunet_native":
         cmd += ["--device", args.device]
 
     t0 = time.perf_counter()
@@ -136,6 +143,8 @@ def main():
     p.add_argument("--folds", default=None, help="фолды (пусто = все у модели), напр. 0")
     p.add_argument("--stride", default=None)
     p.add_argument("--device", default=None, choices=["cpu", "gpu", "gpu.0"])
+    p.add_argument("--engine", default=None, choices=list(config.VALID_ENGINES),
+                   help=f"движок теста (по умолчанию из settings.ini: {config.DEFAULT_ENGINE})")
     args = p.parse_args()
 
     # проверка модели до долгих прогонов
@@ -158,7 +167,8 @@ def main():
     print(f"Модель:      {test_cfg['name']} (фолды: {test_cfg['folds']})")
     if ref_cfg:
         print(f"Эталон:      {ref_cfg['name']} (фолды: {ref_cfg['folds']})")
-    print(f"Кейсов:      {len(cases)}; преобработка: {config.DEFAULT_VARIANT}")
+    print(f"Кейсов:      {len(cases)}; движок: {getattr(args, 'engine', None) or config.DEFAULT_ENGINE}; "
+          f"преобработка: {config.DEFAULT_VARIANT}")
 
     out_dir = os.path.join(config.LOG_DIR, "validate")
     os.makedirs(out_dir, exist_ok=True)

@@ -91,15 +91,24 @@ class MainWindow(QMainWindow):
         if not ui_file.open(QFile.ReadOnly):
             raise RuntimeError(f"Не удалось открыть {ui_path}")
         try:
-            loader.load(ui_file, self)
+            loaded = loader.load(ui_file, self)
         finally:
             ui_file.close()
+        if loaded is None:
+            raise RuntimeError(f"QUiLoader вернул None для {ui_path}")
 
-        # QUiLoader создаёт форму СКРЫТОЙ (WA_WState_Hidden) — win.show()
-        # скрытых детей не показывает, окно остаётся пустым без явного show
-        cw = self.centralWidget()
+        # QUiLoader загружает QMainWindow-форму как ВТОРОЕ топ-левел окно
+        # (QMainWindow всегда Qt.Window, даже с parent): получается пустой
+        # каркас-«nnunet_gui» + форма рядом. Переносим содержимое формы в
+        # себя и уничтожаем дубль — остаётся ОДНО окно.
+        cw = loaded.takeCentralWidget()
+        title, min_sz, size = loaded.windowTitle(), loaded.minimumSize(), loaded.size()
+        loaded.deleteLater()
         if cw is not None:
-            cw.setVisible(True)
+            self.setCentralWidget(cw)
+        self.setWindowTitle(title)
+        self.setMinimumSize(min_sz)
+        self.resize(size)
 
         # Кэш виджетов по objectName для быстрого доступа
         self._ui = {}
@@ -127,6 +136,9 @@ class MainWindow(QMainWindow):
         self.chkCrop = self._ui_get("chkCrop")
         self.chkAsync = self._ui_get("chkAsync")
         self.cmbVariant = self._ui_get("cmbVariant")
+        self.lblVariant = self._ui_get("lblVariant")
+        self.lblStride = self._ui_get("lblStride")
+        self.cmbEngine = self._ui_get("cmbEngine")
         self.entryStride = self._ui_get("entryStride")
         self.lblInfo = self._ui_get("lblInfo")
         self.rowPost = self._ui_get("rowPost")
@@ -206,6 +218,8 @@ class MainWindow(QMainWindow):
         self.chkCrop.setChecked(bool(config.CROP_AIR))
         self.chkAsync.setChecked(int(config.N_ASYNC_REQUESTS) > 1)
         self.cmbVariant.setCurrentText(str(config.DEFAULT_VARIANT))
+        self.cmbEngine.setCurrentText(str(config.DEFAULT_ENGINE))
+        self._on_engine_changed()
         self.entryStride.setText(str(config.STEP_SIZE_RATIO))
         self.lblWatchDir.setText(config.WATCH_DIR)
         self.lblQuantIntro.setText(
@@ -231,7 +245,7 @@ class MainWindow(QMainWindow):
     def _update_lbl_info(self):
         self.lblInfo.setText(
             f"Модель: {config.MODEL} · устройство: {str(config.DEVICE).upper()} · "
-            f"накопитель: {str(config.ACCUMULATOR).lower()}"
+            f"движок: {config.DEFAULT_ENGINE} · накопитель: {str(config.ACCUMULATOR).lower()}"
             + ("" if _POST_OK else " · постобработка: недоступна"))
 
     # ---------- служебное ----------
@@ -342,6 +356,7 @@ class MainWindow(QMainWindow):
         self.btnImport.clicked.connect(self._import)
         self.btnSelectPid.clicked.connect(self._select_pid)
         self.btnRun.clicked.connect(self._run_pipeline)
+        self.cmbEngine.currentTextChanged.connect(lambda _t: self._on_engine_changed())
         self.btnBrowseExport.clicked.connect(lambda: self._browse(self.entryExport, "Куда положить RTSTRUCT"))
         self.btnExport.clicked.connect(self._export)
         self.btnWatchStart.clicked.connect(self._watch_start)
@@ -404,6 +419,10 @@ class MainWindow(QMainWindow):
             if out:
                 log(out + "\n")
                 out_box.append(out)
+            # доступность CUDA (для движка nnunet_native) — той же задачей,
+            # т.к. фоновых задач у GUI одна за разом
+            ok = config.cuda_available(python=PYTHON_EXE, log=log)
+            log(f"[GUI] CUDA: {'доступна — движок nnunet_native готов' if ok else 'недоступна (native-движок работать не будет)'}\n")
             return r.returncode
 
         def after(ok, title):
@@ -419,6 +438,21 @@ class MainWindow(QMainWindow):
         self._start_job("Проверка окружения", in_process=run_env_check, on_done=after)
 
     # ================= ВКЛАДКА «РАБОТА» =================
+
+    def _on_engine_changed(self):
+        """Выбор движка на вкладке «Работа»: у нативного nnUNet свои
+        преобработка/устройство, поэтому OpenVINO-опции не применимы."""
+        native = self.cmbEngine.currentText() == "nnunet_native"
+        for w in (self.lblVariant, self.cmbVariant, self.chkCrop, self.chkAsync,
+                  self.entryStride, self.lblStride):
+            w.setEnabled(not native)
+        self.lblInfo.setText(
+            "Движок: nnunet_native (оригинальный nnUNet, GPU CUDA) — "
+            "вариант/кроп/async не применяются, модель нужна как .pth"
+            if native else
+            f"Модель: {config.MODEL} · устройство: {str(config.DEVICE).upper()} · "
+            f"движок: {config.DEFAULT_ENGINE} · накопитель: {str(config.ACCUMULATOR).lower()}"
+            + ("" if _POST_OK else " · постобработка: недоступна"))
 
     def _import(self):
         folder = self.entryDicom.text().strip()
@@ -458,23 +492,37 @@ class MainWindow(QMainWindow):
         if not self.patient_id:
             QMessageBox.critical(self, "Ошибка", "Импортируйте DICOM или выберите ID пациента.")
             return
+        engine = self.cmbEngine.currentText()
+        if engine == "nnunet_native" and config.cuda_available() is False:
+            answer = QMessageBox.question(
+                self, "Нет CUDA",
+                "CUDA недоступна (нет NVIDIA GPU, либо в окружение не установлены\n"
+                "пакеты GPU-инференса: pip install -r requirements-gpu.txt).\n\n"
+                "Нативный nnUNet на CPU КРАЙНЕ медленный (~65+ минут на кейс).\n"
+                "Запустить всё равно? (для проверки эквивалентности)",
+                QMessageBox.Yes | QMessageBox.No)
+            if answer != QMessageBox.Yes:
+                return
         try:
             cmd = self._python_cmd("radonc_segmentation.pipeline", self.patient_id, "--no-export",
-                                   "--variant", self.cmbVariant.currentText())
+                                   "--engine", engine)
+            if engine != "nnunet_native":
+                cmd += ["--variant", self.cmbVariant.currentText()]
         except RuntimeError as e:
             QMessageBox.critical(self, "Ошибка", str(e))
             return
         try:
             stride = float(self.entryStride.text())
-            if stride != config.STEP_SIZE_RATIO:
+            if stride != config.STEP_SIZE_RATIO and engine != "nnunet_native":
                 cmd += ["--stride", str(stride)]
         except ValueError:
             QMessageBox.critical(self, "Ошибка", f"Stride должен быть числом, получено: {self.entryStride.text()!r}")
             return
-        if not self.chkCrop.isChecked():
-            cmd.append("--no-crop")
-        if not self.chkAsync.isChecked():
-            cmd.append("--no-async")
+        if engine != "nnunet_native":
+            if not self.chkCrop.isChecked():
+                cmd.append("--no-crop")
+            if not self.chkAsync.isChecked():
+                cmd.append("--no-async")
         if _POST_OK:
             tpl = self.cmbPostTpl.currentText().strip()
             if tpl:
@@ -489,8 +537,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.critical(self, "Ошибка", "Пайплайн завершился с ошибкой — см. лог.")
 
-        self._start_job(f"Пайплайн {self.patient_id} ({self.cmbVariant.currentText()})",
-                        [cmd], on_done=after)
+        self._start_job(f"Пайплайн {self.patient_id} ({engine})", [cmd], on_done=after)
 
     def _export(self):
         if not self.patient_id:
@@ -845,6 +892,8 @@ class MainWindow(QMainWindow):
                            config.OV_PERFORMANCE_HINT, choices=["LATENCY", "THROUGHPUT", "none"])
 
         # --- инференс ---
+        self._settings_row(self.gridInference, "Движок (openvino / nnunet_native)", "inference", "ENGINE",
+                           config.DEFAULT_ENGINE, choices=list(config.VALID_ENGINES))
         self._settings_row(self.gridInference, "Вариант (legacy / aligned)", "inference", "VARIANT",
                            config.DEFAULT_VARIANT, choices=["legacy", "aligned"])
         self._settings_row(self.gridInference, "Фолды (пусто = все)", "inference", "FOLDS",

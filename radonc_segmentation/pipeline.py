@@ -1,7 +1,9 @@
 # ============================================================
 # pipeline.py — весь пайплайн одной командой
 # ------------------------------------------------------------
-# import DICOM -> NIfTI -> инференс (OpenVINO) -> RTSTRUCT -> экспорт
+# import DICOM -> NIfTI -> инференс -> RTSTRUCT -> экспорт
+# Движок инференса: openvino (по умолчанию, CPU) или nnunet_native
+# (оригинальный nnUNet, GPU) — флаг --engine или [inference] ENGINE.
 #
 # Запуск (из корня проекта, после pip install -e . или без установки):
 #   python -m radonc_segmentation.pipeline "D:\экспорт\пациент\CT"   # новый пациент (ID выдаётся сам)
@@ -67,6 +69,26 @@ def run_step(title, cmd):
     return dt
 
 
+def infer_step_command(engine, variant, patient_id, common_flags, ov_flags):
+    """Единая точка выбора движка инференса (шаг 3). Возвращает
+    (cmd, seg_name, метка для лога).
+    common_flags — понятны всем движкам (--stride/--folds/--model),
+    ov_flags — только OpenVINO (--no-crop/--no-async/--device)."""
+    if engine == "nnunet_native":
+        # нативный nnUNet: преобработку/sliding window делает сам,
+        # варианты legacy/aligned не участвуют
+        cmd = ([sys.executable, "-m", "radonc_segmentation.native.native_infer",
+                patient_id, "--force"] + common_flags)
+        return cmd, f"{patient_id}_native.nii.gz", "native"
+    if variant == "aligned":
+        cmd = [sys.executable, "-m", "radonc_segmentation.aligned.infer_ov_aligned",
+               patient_id] + common_flags + ov_flags
+        return cmd, f"{patient_id}_aligned.nii.gz", variant
+    cmd = [sys.executable, "-m", "radonc_segmentation.infer_ov",
+           patient_id, "--force"] + common_flags + ov_flags
+    return cmd, f"{patient_id}.nii.gz", variant
+
+
 def main():
     # проверяем зависимости ВСЕХ шагов заранее — с понятным сообщением
     # вместо трейсбеков в середине пайплайна (см. env_check.py)
@@ -76,6 +98,9 @@ def main():
     p.add_argument("--variant", default=config.DEFAULT_VARIANT, choices=["legacy", "aligned"],
                    help=f"legacy — как в продакшне; aligned — выровненная преобработка (сравнение). "
                         f"По умолчанию из settings.ini: {config.DEFAULT_VARIANT}")
+    p.add_argument("--engine", default=config.DEFAULT_ENGINE, choices=list(config.VALID_ENGINES),
+                   help=f"Движок инференса. По умолчанию из settings.ini: {config.DEFAULT_ENGINE}. "
+                        f"nnunet_native требует .pth-модель и GPU (см. README)")
     p.add_argument("--stride", type=float, default=config.STEP_SIZE_RATIO)
     p.add_argument("--no-crop", action="store_true")
     p.add_argument("--no-async", action="store_true")
@@ -110,19 +135,22 @@ def main():
             raise SystemExit(f"Папка пациента не найдена: {base_dir}")
     print(f"Пациент: {patient_id}  ({base_dir})")
 
-    infer_flags = []
+    infer_flags = []       # понятны всем движкам
+    ov_flags = []          # только движку OpenVINO
     if args.stride != config.STEP_SIZE_RATIO:
         infer_flags += ["--stride", str(args.stride)]
-    if args.no_crop:
-        infer_flags.append("--no-crop")
-    if args.no_async:
-        infer_flags.append("--no-async")
     if args.folds:
         infer_flags += ["--folds", args.folds]
-    if args.device:
-        infer_flags += ["--device", args.device]
     if args.model:
         infer_flags += ["--model", args.model]
+    if args.no_crop:
+        ov_flags.append("--no-crop")
+    if args.no_async:
+        ov_flags.append("--no-async")
+    if args.device:
+        ov_flags += ["--device", args.device]
+    # метка для лога известна до шага инференса (файлы могут упасть раньше)
+    variant_label = "native" if args.engine == "nnunet_native" else args.variant
 
     try:
         # 2. DICOM -> NIfTI
@@ -138,15 +166,9 @@ def main():
             )
 
         # 3. Инференс
-        if args.variant == "aligned":
-            infer_cmd = [sys.executable, "-m", "radonc_segmentation.aligned.infer_ov_aligned",
-                         patient_id] + infer_flags
-            seg_name = f"{patient_id}_aligned.nii.gz"
-        else:
-            infer_cmd = [sys.executable, "-m", "radonc_segmentation.infer_ov",
-                         patient_id, "--force"] + infer_flags
-            seg_name = f"{patient_id}.nii.gz"
-        timings["infer"] = run_step(f"Инференс ({args.variant})", infer_cmd)
+        infer_cmd, seg_name, _ = infer_step_command(
+            args.engine, args.variant, patient_id, infer_flags, ov_flags)
+        timings["infer"] = run_step(f"Инференс ({variant_label})", infer_cmd)
 
         # 3.5. Per-структурный постпроцессинг по шаблону (до RTSTRUCT)
         if args.postprocess_template:
@@ -198,21 +220,21 @@ def main():
     except RuntimeError as e:
         total_min = (time.perf_counter() - t_total) / 60
         print(f"\n!!! {e}")
-        log_row([time.strftime("%Y-%m-%d %H:%M:%S"), patient_id, args.variant,
+        log_row([time.strftime("%Y-%m-%d %H:%M:%S"), patient_id, variant_label,
                  f"{timings.get('convert', 0):.1f}", f"{timings.get('infer', 0):.1f}",
                  f"{timings.get('rtstruct', 0):.1f}", f"{timings.get('export', 0):.1f}",
                  f"{total_min:.1f}", "FAILED"])
         sys.exit(1)
 
     total_min = (time.perf_counter() - t_total) / 60
-    print(f"\n===== ИТОГ {patient_id} ({args.variant}) =====")
+    print(f"\n===== ИТОГ {patient_id} ({variant_label}) =====")
     for k, human in [("convert", "Конвертация"), ("infer", "Инференс"),
                      ("rtstruct", "RTSTRUCT"), ("export", "Экспорт")]:
         print(f"  {human:<12} {timings[k]:>8.1f} с")
     print(f"  {'ВСЕГО':<12} {total_min * 60:>8.1f} с ({total_min:.1f} мин)")
     print(f"RTSTRUCT: {os.path.join(base_dir, 'rtstruct.dcm')}")
 
-    log_row([time.strftime("%Y-%m-%d %H:%M:%S"), patient_id, args.variant,
+    log_row([time.strftime("%Y-%m-%d %H:%M:%S"), patient_id, variant_label,
              f"{timings['convert']:.1f}", f"{timings['infer']:.1f}",
              f"{timings['rtstruct']:.1f}", f"{timings['export']:.1f}",
              f"{total_min:.1f}", "OK"])

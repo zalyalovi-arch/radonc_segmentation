@@ -9,7 +9,10 @@
 #      предлагает скачать и установить Miniconda автоматически.
 #   2. Создаёт окружение nnunet_env (Python 3.10), если его нет.
 #   3. Ставит зависимости из requirements.txt и пакет (pip install -e .).
-#   4. Проверяет окружение (env_check) и подстраивает настройки
+#   4. Ставит опциональные пакеты: квантизация (torch CPU) и, при наличии
+#      NVIDIA GPU и согласии пользователя, GPU-инференс (torch CUDA +
+#      nnunetv2 — взаимоконфликтны по torch, ставится что-то одно).
+#   5. Проверяет окружение (env_check) и подстраивает настройки
 #      под железо этого компьютера (config.autotune_hardware).
 #
 # Повторный запуск безопасен: шаги пропускаются, если уже сделаны.
@@ -74,6 +77,25 @@ def env_python(conda_exe):
 def run(cmd, **kw):
     print("  $ " + " ".join(cmd))
     return subprocess.run(cmd, **kw)
+
+
+def _has_nvidia_gpu():
+    """Есть ли видеокарта NVIDIA (по nvidia-smi из PATH или типовым путям)."""
+    import shutil as _sh
+    exe = _sh.which("nvidia-smi")
+    if not exe:
+        for base in (os.environ.get("SystemRoot", r"C:\Windows"),):
+            cand = os.path.join(base, "System32", "nvidia-smi.exe")
+            if os.path.isfile(cand):
+                exe = cand
+                break
+    if not exe:
+        return False
+    try:
+        r = subprocess.run([exe], capture_output=True, text=True, timeout=30)
+        return "NVIDIA-SMI" in (r.stdout or "").upper()
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def install_miniconda():
@@ -175,6 +197,28 @@ def main():
                   "пропускаю (можно доустановить позже этой же командой).")
     else:
         print("  requirements-quantization.txt не найден — пропускаю.")
+
+    # --- 4.5 опциональные пакеты GPU-инференса (нативный nnUNet) ---
+    # Ставятся ТОЛЬКО по явному согласию: конфликтуют по сборке torch с
+    # квантизацией (cu126 vs cpu), а GPU есть не у всех.
+    gpu_req = os.path.join(PROJECT_DIR, "requirements-gpu.txt")
+    print("\n[4.5/5] Пакеты GPU-инференса (requirements-gpu.txt, опционально)...")
+    if os.path.isfile(gpu_req) and _has_nvidia_gpu():
+        print("  Обнаружена NVIDIA GPU. Нативный nnUNet-движок (ENGINE=nnunet_native)")
+        print("  работает заметно быстрее CPU, но ЗАМЕНЯЕТ torch-CPU из квантизации")
+        print("  (в одном окружении — либо то, либо другое).")
+        answer = input("  Установить torch CUDA + nnunetv2 (~3.5 ГБ)? [y/N]: ").strip().lower()
+        if answer in ("y", "yes", "д", "да"):
+            r = run([py, "-m", "pip", "install", "-r", gpu_req])
+            if r.returncode != 0:
+                print("[ВНИМАНИЕ] Не удалось установить пакеты GPU-инференса — "
+                      "пропускаю (можно доустановить позже: pip install -r requirements-gpu.txt).")
+        else:
+            print("  Пропускаю (остаётся torch CPU — квантизация работает, GPU-движок нет).")
+    elif not _has_nvidia_gpu():
+        print("  NVIDIA GPU не обнаружена — пропускаю (OpenVINO-инференс это не затрагивает).")
+    else:
+        print("  requirements-gpu.txt не найден — пропускаю.")
 
     # --- 5. настройки под железо ---
     print("\n[5/5] Подстраиваю настройки под железо этого компьютера...")

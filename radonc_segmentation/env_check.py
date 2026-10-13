@@ -31,6 +31,9 @@ REQ_PATH = os.path.join(_PROJECT_DIR, "requirements.txt")
 # опциональные пакеты (импорт .pth -> IR, INT8-квантизация): отсутствие
 # НЕ мешает инференсу, поэтому проверяются отдельно и без кода ошибки
 QUANT_REQ_PATH = os.path.join(_PROJECT_DIR, "requirements-quantization.txt")
+# опциональные пакеты нативного GPU-инференса (torch CUDA + nnunetv2);
+# конфликтуют с quantization по сборке torch — ставится что-то одно
+GPU_REQ_PATH = os.path.join(_PROJECT_DIR, "requirements-gpu.txt")
 
 # Дистрибутивы, без которых скрипты падают сразу (имена как в requirements.txt).
 # Этого набора достаточно, чтобы «предупредить заранее» любой входной скрипт.
@@ -251,6 +254,17 @@ def main():
                   "  (без них инференс работает, но «Импорт модели»/«Квантизация» в GUI — нет)")
         else:
             print(f"Опциональные пакеты квантизации ({q_total}): все на месте.")
+
+    # опциональные пакеты GPU-инференса (nnunet_native) — тоже информационно
+    g_problems, g_total = check_optional(GPU_REQ_PATH)
+    if g_total:
+        if g_problems:
+            print(f"Опционально (нативный GPU-инференс): не хватает {len(g_problems)} из {g_total}: "
+                  + ", ".join(p["name"] for p in g_problems))
+            print("  Установка: python -m pip install -r requirements-gpu.txt\n"
+                  "  (нужна NVIDIA GPU; конфликтует по torch с requirements-quantization.txt)")
+        else:
+            print(f"Опциональные пакеты GPU-инференса ({g_total}): все на месте.")
 
     if args.json:
         print("__JSON__" + json.dumps({

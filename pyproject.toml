@@ -5,6 +5,7 @@
 #   python -m pip install -e .
 # Экстры:
 #   python -m pip install -e .[quantization]   # обучение и INT8-квантизация
+#   python -m pip install -e .[gpu]            # нативный nnUNet-инференс на NVIDIA GPU
 #   python -m pip install -e .[dev]            # сборка exe и тесты
 # Запуск после установки (или из корня проекта без установки):
 #   python -m gui.main
@@ -43,6 +44,23 @@ quantization = [
     "nncf==2.19.0",
     "jstyleson==0.0.2",
     "dynamic_network_architectures==0.4.2",
+]
+# Нативный nnUNet-инференс на NVIDIA GPU (движок nnunet_native). Пины
+# повторяют requirements-gpu.txt; CUDA-сборку torch (+cu126) pip найдёт
+# только с её индексом, поэтому надёжнее ставить файлом:
+#   pip install -r requirements-gpu.txt
+gpu = [
+    "torch==2.8.0+cu126",
+    "nnunetv2==2.6.2",
+    "acvl_utils==0.2.5",
+    "batchgenerators==0.25.1",
+    "batchgeneratorsv2==0.3.0",
+    "dynamic_network_architectures==0.4.2",
+    "einops==0.8.1",
+    "yacs==0.1.8",
+    "tifffile==2025.5.10",
+    "pandas==2.2.3",
+    "scikit-learn==1.7.2",
 ]
 dev = [
     "pyinstaller==6.17.0",

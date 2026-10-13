@@ -1,0 +1,29 @@
+# ============================================================
+# requirements-gpu.txt — ОПЦИОНАЛЬНЫЕ пакеты для нативного
+# nnUNet-инференса на NVIDIA GPU (движок nnunet_native,
+# [inference] ENGINE = nnunet_native в settings.ini).
+# Обычному пользователю с OpenVINO-инференсом НЕ нужны.
+#
+#   python -m pip install -r requirements-gpu.txt
+#
+# ВНИМАНИЕ: конфликтует с requirements-quantization.txt — оба ставят
+# torch, но разные сборки (cu126 vs cpu). В одно окружение ставьте
+# ЛИБО то (GPU-инференс), ЛИБО другое (импорт .pth -> IR и INT8).
+# Базовые пакеты requirements.txt ставятся ПЕРЕД этим файлом.
+# ============================================================
+--extra-index-url https://download.pytorch.org/whl/cu126
+
+# --- PyTorch CUDA 12.6 (инференс; подходит и для экспорта .pth -> IR) ---
+torch==2.8.0+cu126
+
+# --- nnU-Net v2 и его прямые зависимости (версии из проверенного окружения) ---
+nnunetv2==2.6.2
+acvl_utils==0.2.5
+batchgenerators==0.25.1
+batchgeneratorsv2==0.3.0
+dynamic_network_architectures==0.4.2
+einops==0.8.1
+yacs==0.1.8
+tifffile==2025.5.10
+pandas==2.2.3
+scikit-learn==1.7.2

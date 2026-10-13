@@ -9,6 +9,7 @@
 import configparser
 import os
 import re
+import subprocess
 import sys
 
 
@@ -71,6 +72,10 @@ N_ASYNC_REQUESTS = 2
 OV_PERFORMANCE_HINT = "LATENCY"
 
 DEFAULT_VARIANT = "legacy"
+# движок инференса: openvino (IR на CPU, прод) | nnunet_native (PyTorch,
+# оригинальный nnUNet — для машин с NVIDIA GPU). Подробности: README, «GPU».
+DEFAULT_ENGINE = "openvino"
+VALID_ENGINES = ("openvino", "nnunet_native")
 DEFAULT_FOLDS = [0, 1, 2, 3, 4]
 STEP_SIZE_RATIO = 0.5
 CROP_AIR = True
@@ -285,6 +290,7 @@ def _load_settings():
     set_str("device", "PERFORMANCE_HINT", "OV_PERFORMANCE_HINT")
 
     set_str("inference", "VARIANT", "DEFAULT_VARIANT")
+    set_str("inference", "ENGINE", "DEFAULT_ENGINE")
     set_float("inference", "STEP_SIZE_RATIO", "STEP_SIZE_RATIO")
     set_bool("inference", "CROP_AIR", "CROP_AIR")
     set_float("inference", "AIR_THRESHOLD_HU", "AIR_THRESHOLD_HU")
@@ -325,12 +331,14 @@ def _load_settings():
         raise SettingsValidationError(f"[settings.ini] inference.ACCUMULATOR: допустимо disk | ram, получено {g['ACCUMULATOR']!r}")
     if str(g["DEFAULT_VARIANT"]).lower() not in ("legacy", "aligned"):
         raise SettingsValidationError(f"[settings.ini] inference.VARIANT: допустимо legacy | aligned, получено {g['DEFAULT_VARIANT']!r}")
+    if str(g["DEFAULT_ENGINE"]).lower() not in VALID_ENGINES:
+        raise SettingsValidationError(f"[settings.ini] inference.ENGINE: допустимо {' | '.join(VALID_ENGINES)}, получено {g['DEFAULT_ENGINE']!r}")
 
     print(f"[config] настройки прочитаны из: {ini_path}")
     print(f"[config] устройство={g['DEVICE']}, stride={g['STEP_SIZE_RATIO']}, "
           f"фолды={g['DEFAULT_FOLDS']}, кроп={g['CROP_AIR']}, "
           f"async={g['N_ASYNC_REQUESTS']}, накопитель={g['ACCUMULATOR']}, "
-          f"вариант={g['DEFAULT_VARIANT']}, модель={g['MODEL']}")
+          f"вариант={g['DEFAULT_VARIANT']}, движок={g['DEFAULT_ENGINE']}, модель={g['MODEL']}")
 
 
 _load_settings()
@@ -440,6 +448,44 @@ def find_conda_python(env_name=None):
         if os.path.isfile(p):
             return p
     return None
+
+
+_CUDA_AVAILABLE = None  # кэш проверки CUDA (None — ещё не проверяли)
+
+
+def cuda_status():
+    """Кэшированный результат cuda_available(): True/False или None (не проверяли)."""
+    return _CUDA_AVAILABLE
+
+
+def cuda_available(python=None, force=False, log=print):
+    """Есть ли в окружении torch с работающей CUDA (для движка nnunet_native).
+    torch в текущем процессе может отсутствовать (GUI-exe), поэтому проверяем
+    subprocess'ом тем python'ом, которым будут запускаться скрипты
+    (CONDA_PYTHON / автопоиск / текущий). Импорт torch занимает секунды —
+    результат кэшируется (см. cuda_status)."""
+    global _CUDA_AVAILABLE
+    if _CUDA_AVAILABLE is not None and not force:
+        return _CUDA_AVAILABLE
+    py = python
+    if not py:
+        py = CONDA_PYTHON if (CONDA_PYTHON and os.path.isfile(CONDA_PYTHON)) else find_conda_python()
+    if not py:
+        py = sys.executable
+    try:
+        r = subprocess.run(
+            [py, "-c", "import torch; print(int(torch.cuda.is_available()))"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
+        out = (r.stdout or "").strip().splitlines()
+        ok = r.returncode == 0 and bool(out) and out[-1].strip() == "1"
+        if r.returncode != 0:
+            log(f"[config] проверка CUDA не удалась ({os.path.basename(py)}): "
+                + ((r.stderr or "").strip().splitlines() or ["?"])[-1])
+    except (OSError, subprocess.SubprocessError) as e:
+        log(f"[config] проверка CUDA не удалась: {e}")
+        ok = False
+    _CUDA_AVAILABLE = ok
+    return ok
 
 
 def _total_ram_gb():

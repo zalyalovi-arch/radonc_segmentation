@@ -1,7 +1,7 @@
 # RadOnc Segmentation (nnUnet INT8 openVino)
 
 GUI-пайплайн автоматической сегментации органов риска головы и шеи по КТ:
-импорт DICOM → конвертация в NIfTI → инференс нейросети (OpenVINO INT8, CPU) → экспорт RTSTRUCT для планирующей системы.
+импорт DICOM → конвертация в NIfTI → инференс нейросети (по умолчанию OpenVINO INT8 на CPU; опционально оригинальный nnUNet на NVIDIA GPU) → экспорт RTSTRUCT для планирующей системы.
 Плюс инструменты постпроцессинга масок, квантизации и сравнения метрик (Dice, HD95).
 
 Если вы используете репозиторий, не забывайте ссылаться на:
@@ -48,7 +48,8 @@ python setup_env.py
 2. Создаст окружение `nnunet_env` (Python 3.10).
 3. Поставит зависимости из `requirements.txt` и сам пакет (`pip install -e .`, обычный pip, ~10-20 минут).
 4. Поставит опциональные пакеты квантизации из `requirements-quantization.txt` (torch CPU, nncf и др., ~2 ГБ) — нужны только для импорта/квантизации своей модели; сбой этого шага не фатален.
-5. Проверит окружение и подстроит настройки под железо (потоки, накопитель).
+5. При наличии NVIDIA GPU спросит, поставить ли пакеты GPU-инференса (`requirements-gpu.txt`, torch CUDA + nnunetv2, ~3.5 ГБ) — только по явному согласию: они заменяют torch CPU из квантизации. Подробнее — раздел «GPU-инференс».
+6. Проверит окружение и подстроит настройки под железо (потоки, накопитель).
 
 Повторный запуск безопасен — готовые шаги пропускаются.
 
@@ -128,6 +129,65 @@ python -m radonc_segmentation.quantization.quantize_ov --source models\headandne
 Пакеты импорта/квантизации ставит `setup_env.py` (шаг 4); вручную:
 `python -m pip install -r requirements-quantization.txt`.
 
+## GPU-инференс (нативный nnUNet, NVIDIA)
+
+Помимо основного OpenVINO-движка (CPU, INT8) программа умеет считать
+**оригинальным nnUNet** (`nnUNetv2Predictor`, PyTorch) — движок
+`nnunet_native`. Это тот же путь, которым модель обучалась: nnUNet сам
+делает преобработку, sliding window, ансамбль фолдов и TTA, результат —
+эталонное качество, на GPU заметно быстрее CPU-инференса.
+
+**Кому это нужно.** Пользователям с NVIDIA GPU (у офисных машин без
+дискретной видеокарты остаётся дефолтный openvino-путь — он не менялся).
+Осторожно: в один conda-окружение torch ставится в одной сборке —
+`requirements-gpu.txt` (CUDA) **заменяет** `requirements-quantization.txt`
+(CPU): вместе их ставить нельзя.
+
+### Установка на машину с NVIDIA GPU
+
+```bat
+copy settings.example.ini settings.ini
+python setup_env.py                  :: базовые пакеты; на шаге про GPU откажитесь
+python -m pip install -r requirements-gpu.txt   :: torch CUDA + nnunetv2 (~3.5 ГБ)
+```
+
+### Веса
+
+Чекпоинты в репозиторий не входят. Модель нужна в виде **.pth** (то, что
+скачивается из Kaggle Output после обучения/дистилляции). Импортируйте её
+как обычно — GUI: «Квантизация» → «Импорт модели», или
+
+```bat
+python -m radonc_segmentation.quantization.import_checkpoint --src checkpoint_final.pth --name distilled
+```
+
+Импорт кладёт чекпоинты в `models\_src\<имя>\` и экспортирует OpenVINO IR.
+Нативному движку IR не нужен — он работает прямо по стейджингу `_src`
+(весы не копируются).
+
+### Включение
+
+- GUI, вкладка «Работа»: комбо **Движок** → `nnunet_native` (опции
+  кропа/stride/async при этом не применимы — их делает сам nnUNet);
+- или `settings.ini` → `[inference] ENGINE = nnunet_native`;
+- или разово: `python -m radonc_segmentation.pipeline P110 --engine nnunet_native`.
+
+Без CUDA запуск блокируется с объяснением (нативный nnUNet на CPU —
+65+ минут на кейс против ~6 минут у INT8; для проверки эквивалентности
+движков есть `--allow-cpu` в `native_infer.py`). GUI при старте пишет
+в лог, доступна ли CUDA.
+
+### Проверка качества
+
+Тот же «Тест модели на валидации» (GUI) или:
+
+```bat
+python -m radonc_segmentation.quantization.validate_model --model headandneck/distilled --engine nnunet_native --case validation_DICOM_0001
+```
+
+Сравните Dice с OpenVINO-результатом той же модели — расхождение в
+пределах ~0.001 ожидаемо (другая реализация свёрток).
+
 ## Структура проекта
 
 ```
@@ -139,6 +199,7 @@ python -m radonc_segmentation.quantization.quantize_ov --source models\headandne
 ├── settings.example.ini       ← шаблон настроек (копируйте в settings.ini)
 ├── requirements.txt           ← зависимости пайплайна и GUI
 ├── requirements-quantization.txt ← опц. пакеты импорта/квантизации (torch, nncf)
+├── requirements-gpu.txt       ← опц. пакеты GPU-инференса (torch CUDA, nnunetv2)
 ├── pyproject.toml             ← метаданные пакета (pip install -e ., экстры)
 ├── models\                    ← СЮДА кладутся веса (пустая, см. example.txt)
 ├── patients\                  ← данные пациентов (создаётся при импорте)
@@ -164,6 +225,7 @@ python -m radonc_segmentation.quantization.quantize_ov --source models\headandne
 │   ├── env_check.py           ← проверка окружения (используется при старте)
 │   ├── check_devices.py       ← список устройств OpenVINO
 │   ├── aligned\               ← вариант инференса, выровненный по обучению
+│   ├── native\                ← нативный nnUNet-движок (GPU): стейджинг .pth + nnUNetv2Predictor
 │   ├── quantization\          ← импорт .pth → IR, тест модели (Dice-гейт), INT8-квантизация, бенчмарк
 │   ├── external_baselines\    ← сравнение с TotalSegmentator (справочно)
 │   ├── postprocess_experiment.py ← исследование постпроцессинга (CLI)
@@ -182,7 +244,8 @@ python -m radonc_segmentation.quantization.quantize_ov --source models\headandne
 |---|---|---|
 | `[device]` | `DEVICE` | `cpu` (основной вариант) или `gpu` |
 | `[device]` | `NUM_THREADS` | логические ядра; подбирается автоматически при первом запуске |
-| `[inference]` | `VARIANT` | `legacy` (дефолт) или `aligned` — варианты преобработки |
+| `[inference]` | `VARIANT` | `legacy` (дефолт) или `aligned` — варианты преобработки (только движок openvino) |
+| `[inference]` | `ENGINE` | `openvino` (дефолт) или `nnunet_native` — см. «GPU-инференс» |
 | `[inference]` | `CROP_AIR` | кроп воздуха — ускоряет инференс в 1.5-2 раза |
 | `[inference]` | `ACCUMULATOR` | `disk` (надёжно) или `ram` (быстрее, нужно ~7 ГБ свободной ОЗУ) |
 | `[model]` | `MODEL_NAME`, `MODEL` | подпапка модели: `models\<MODEL_NAME>\<MODEL>` |
