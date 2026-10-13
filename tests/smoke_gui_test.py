@@ -42,6 +42,18 @@ def main():
         "(QUiLoader.load создаёт форму скрытой, нужен setVisible(True))")
     print("видимость окна: OK")
 
+    # КРИТИЧНО: видимых топ-левел QMainWindow должно быть ОДИН. QUiLoader
+    # грузит QMainWindow-форму ВТОРЫМ окном рядом с каркасом (QMainWindow
+    # всегда Qt.Window) — у пользователя оставалось пустое окно «nnunet_gui»
+    # после закрытия основного. _load_ui переносит содержимое и убивает дубль.
+    from PySide6.QtWidgets import QMainWindow
+    mains = [w for w in QApplication.topLevelWidgets()
+             if isinstance(w, QMainWindow) and w.isVisible()]
+    assert len(mains) == 1, (
+        f"видимых QMainWindow {len(mains)}: "
+        f"{[w.windowTitle() or w.objectName() for w in mains]} — двойное окно")
+    print("единственное окно: OK")
+
     # ждём завершения фоновой проверки окружения (до 120 с)
     t0 = time.time()
     while win._busy() and time.time() - t0 < 120:
