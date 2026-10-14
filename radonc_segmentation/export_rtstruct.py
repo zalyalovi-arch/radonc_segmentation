@@ -9,20 +9,20 @@ from radonc_segmentation import config
 
 def main():
     # ===== HOW TO RUN =====
-    # python export_rtstruct.py P002 "D:\path\to\original\dicom_folder"
+    # python -m radonc_segmentation.export_rtstruct P002 "D:\path\to\original\dicom_folder"
     #
     if len(sys.argv) < 3:
         raise SystemExit(
-            "Usage: python export_rtstruct.py PXXX <ORIGINAL_DICOM_FOLDER>\n"
-            "Example: python export_rtstruct.py P002 \"D:\\CTs\\Patient123\""
+            "Usage: python -m radonc_segmentation.export_rtstruct PXXX <ORIGINAL_DICOM_FOLDER>\n"
+            "Example: python -m radonc_segmentation.export_rtstruct P002 \"D:\\CTs\\Patient123\""
         )
 
     patient_id = sys.argv[1]              # e.g. "P002"
     original_dicom_folder = sys.argv[2]   # where you originally imported from
 
-    # 1) Where nnU-Net patient folders live (папка patients из settings.ini)
-    patients_root = config.PATIENTS_ROOT
-    base_dir = os.path.join(patients_root, patient_id)
+    # 1) Папка пациента — config.patient_dir(): patients\<MODEL_NAME>\PXXX
+    #    (единый стандарт путей; MODEL_NAME из settings.ini [model])
+    base_dir = config.patient_dir(patient_id)
 
     # 2) Source RTSTRUCT file inside nnU-Net patient folder
     src_rtstruct = os.path.join(base_dir, "rtstruct.dcm")

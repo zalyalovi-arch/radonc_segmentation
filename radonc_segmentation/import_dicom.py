@@ -14,10 +14,20 @@ from radonc_segmentation import config
 def get_next_patient_id(patients_root):
     """
     Find the next free patient ID in the form P001, P002, ...
+    Учитывает пациентов во ВСЕХ анатомических подпапках (patients\<модель>\PXXX),
+    чтобы ID не пересекались между моделями.
     """
     existing = []
+    roots = [patients_root]
     if os.path.isdir(patients_root):
-        for name in os.listdir(patients_root):
+        for sub in os.listdir(patients_root):
+            sub_path = os.path.join(patients_root, sub)
+            if os.path.isdir(sub_path):
+                roots.append(sub_path)
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for name in os.listdir(root):
             if name.startswith("P") and name[1:].isdigit():
                 existing.append(int(name[1:]))
     if not existing:
@@ -68,9 +78,11 @@ def import_dicom(src_dicom_folder):
     High-level function to import a DICOM folder, create a new patient ID,
     copy DICOMs and create subfolders.
     Returns the new patient_id and base_dir.
+    Папка пациента — config.patient_dir(): patients\<MODEL_NAME>\PXXX
+    (та же, которую ищет pipeline/infer — единый стандарт путей).
     """
-    # 1) Root where all nnU-Net patients live
-    patients_root = config.PATIENTS_ROOT
+    # 1) Папка пациентов текущей анатомической модели
+    patients_root = config.patients_dir()
     os.makedirs(patients_root, exist_ok=True)
 
     # 2) Валидация источника ДО копирования
@@ -124,9 +136,9 @@ def import_dicom(src_dicom_folder):
 
 def main():
     # ===== HOW TO RUN FROM COMMAND LINE =====
-    # python import_dicom.py "D:\some\path\to\ct_dicom"
+    # python -m radonc_segmentation.import_dicom "D:\some\path\to\ct_dicom"
     # or a network path like:
-    # python import_dicom.py "\\SERVER\share\Patient123\CT"
+    # python -m radonc_segmentation.import_dicom "\\SERVER\share\Patient123\CT"
     if len(sys.argv) < 2:
         raise SystemExit("Usage: python import_dicom.py <SOURCE_DICOM_FOLDER>")
     src_dicom_folder = sys.argv[1]

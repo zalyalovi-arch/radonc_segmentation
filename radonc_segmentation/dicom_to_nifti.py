@@ -64,21 +64,20 @@ if __name__ == "__main__":
     # ========== HOW TO RUN ==========
     #
     # Run this script as:
-    #   python dicom_to_nifti.py P001
+    #   python -m radonc_segmentation.dicom_to_nifti P001
     #
-    # Where "P001", "P002", ... are patient IDs and each patient has a folder
-    #   C:\nnunet\patients\P001
+    # Папка пациента — config.patient_dir(patient_id):
+    #   <корень проекта>\patients\<MODEL_NAME>\P001   (напр. patients\headandneck\P001)
     #
     # containing a "ct_dicom" subfolder.
 
     from radonc_segmentation import config
 
     if len(sys.argv) < 1 + 1:
-        raise SystemExit("Usage: python dicom_to_nifti.py P001")
+        raise SystemExit("Usage: python -m radonc_segmentation.dicom_to_nifti P001")
     patient_id = sys.argv[1]
 
-    base_root = config.PATIENTS_ROOT
-    base_dir = os.path.join(base_root, patient_id)
+    base_dir = config.patient_dir(patient_id)
 
     # Subfolder that contains CT DICOM files inside base_dir
     dicom_folder = os.path.join(base_dir, "ct_dicom")
