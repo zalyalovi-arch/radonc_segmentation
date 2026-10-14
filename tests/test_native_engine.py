@@ -160,6 +160,28 @@ def test_infer_step_command_native_ignores_variant():
     assert seg == "P007_native.nii.gz" and label == "native"
 
 
+def test_infer_step_command_native_allow_cpu():
+    cmd, seg, label = pipeline.infer_step_command(
+        "nnunet_native", "legacy", "P007", [], [], allow_cpu=True)
+    assert "--allow-cpu" in cmd
+    assert seg == "P007_native.nii.gz" and label == "native"
+
+
+def test_infer_step_command_native_no_allow_cpu_by_default():
+    # без явного разрешения CPU флаг не подставляется — движок сам
+    # отклонит запуск без CUDA с объяснением
+    cmd, _seg, _label = pipeline.infer_step_command(
+        "nnunet_native", "legacy", "P007", [], [])
+    assert "--allow-cpu" not in cmd
+
+
+def test_infer_step_command_openvino_ignores_allow_cpu():
+    # OpenVINO-движку --allow-cpu не нужен (он и так CPU-first) — флаг не пролезает
+    cmd, _seg, _label = pipeline.infer_step_command(
+        "openvino", "legacy", "P007", [], [], allow_cpu=True)
+    assert "--allow-cpu" not in cmd
+
+
 def test_pipeline_argparse_accepts_engine(monkeypatch):
     # --engine доходит до argparse и валидируется по списку движков
     argv = ["pipeline", "P007", "--engine", "nnunet_native"]

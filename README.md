@@ -47,8 +47,8 @@ python setup_env.py
 1. Найдёт conda (Miniconda/Anaconda) в типовых местах; если нет — предложит скачать и установить Miniconda автоматически (спросит подтверждение).
 2. Создаст окружение `nnunet_env` (Python 3.10).
 3. Поставит зависимости из `requirements.txt` и сам пакет (`pip install -e .`, обычный pip, ~10-20 минут, ~1 ГБ на диске).
-4. Поставит опциональные пакеты квантизации из `requirements-quantization.txt` (torch CPU, nncf и др., ~2 ГБ) — нужны только для импорта/квантизации своей модели; сбой этого шага не фатален.
-5. При наличии NVIDIA GPU спросит, поставить ли пакеты GPU-инференса (`requirements-gpu.txt`, torch CUDA + nnunetv2, ~3.5 ГБ) — только по явному согласию: они заменяют torch CPU из квантизации. Подробнее — раздел «GPU-инференс».
+4. Поставит опциональные пакеты квантизации из `requirements-quantization.txt` (onnx, nncf и др., ~0.3 ГБ) и torch CPU-сборкой (`requirements-torch-cpu.txt`, ~0.8 ГБ) — нужны только для импорта/квантизации своей модели; сбой этого шага не фатален.
+5. При наличии NVIDIA GPU спросит, поставить ли пакеты GPU-инференса (`requirements-gpu.txt`: torch CUDA + nnunetv2, ~3.5 ГБ) — только по явному согласию: torch переустанавливается с CPU- на CUDA-сборку, квантизация продолжает работать. На машинах без NVIDIA шаг 4.6 по согласию ставит стек нативного движка для CPU-проверок (`requirements-native.txt`). Подробнее — раздел «Движки инференса и профили установки».
 6. Проверит окружение и подстроит настройки под железо (потоки, накопитель).
 
 Повторный запуск безопасен — готовые шаги пропускаются.
@@ -127,7 +127,29 @@ python -m radonc_segmentation.quantization.quantize_ov --source models\headandne
 ```
 
 Пакеты импорта/квантизации ставит `setup_env.py` (шаг 4); вручную:
-`python -m pip install -r requirements-quantization.txt`.
+`python -m pip install -r requirements-quantization.txt`. Torch в этот
+набор не входит — он ставится отдельным шагом 4.1 (CPU-сборка, файл
+`requirements-torch-cpu.txt`) и нужен в любой сборке: CPU на машинах
+без NVIDIA, CUDA на машинах с NVIDIA (см. ниже).
+
+## Движки инференса и профили установки
+
+Инференс идёт одним из двух движков — ключ `[inference] ENGINE` в
+`settings.ini` (или комбо «Движок» на вкладке «Работа»):
+
+| Движок | Что делает | Устройство |
+|---|---|---|
+| `openvino` (по умолчанию) | INT8-IR, своя преобработка | CPU (или Intel GPU: `[device] DEVICE = gpu`) |
+| `nnunet_native` | оригинальный nnUNet (PyTorch) | NVIDIA GPU; на CPU — только проверка эквивалентности (`--allow-cpu`, 65+ мин/кейс) |
+
+Torch нужен обоим опциональным сценариям (квантизация и `nnunet_native`),
+но ставится **один раз в одной сборке под железо** — переключение движков
+не требует переустановок:
+
+| Профиль машины | Что ставить | Что получается |
+|---|---|---|
+| Без NVIDIA (типовой офисный ПК) | `setup_env.py` ставит сам: квантизация + `requirements-torch-cpu.txt` | OpenVINO CPU + квантизация/импорт .pth; нативный движок — по желанию (шаг 4.6 спросит) |
+| С NVIDIA GPU | `setup_env.py` + на шаге 4.5 согласиться (или вручную `pip install -r requirements-gpu.txt`) | Всё то же + `nnunet_native` на GPU; CUDA-сборка torch покрывает и квантизацию |
 
 ## GPU-инференс (нативный nnUNet, NVIDIA)
 
@@ -139,17 +161,24 @@ python -m radonc_segmentation.quantization.quantize_ov --source models\headandne
 
 **Кому это нужно.** Пользователям с NVIDIA GPU (у офисных машин без
 дискретной видеокарты остаётся дефолтный openvino-путь — он не менялся).
-Осторожно: в один conda-окружение torch ставится в одной сборке —
-`requirements-gpu.txt` (CUDA) **заменяет** `requirements-quantization.txt`
-(CPU): вместе их ставить нельзя.
+Сборка torch в окружении одна: `requirements-gpu.txt` (CUDA) заменяет
+собой `requirements-torch-cpu.txt`; пакеты квантизации с обеими сборками
+совместимы, переустановка ничего не ломает.
 
 ### Установка на машину с NVIDIA GPU
 
 ```bat
 copy settings.example.ini settings.ini
-python setup_env.py                  :: базовые пакеты; на шаге про GPU откажитесь
-python -m pip install -r requirements-gpu.txt   :: torch CUDA + nnunetv2 (~3.5 ГБ)
+python setup_env.py                  :: базовые пакеты; на шаге про GPU согласитесь
+python -m pip install -r requirements-gpu.txt   :: если шаг 4.5 пропустили: torch CUDA + nnunetv2 (~3.5 ГБ)
 ```
+
+### Установка нативного движка на машину БЕЗ NVIDIA (только проверки)
+
+По умолчанию не ставится. Если нужно сравнить движки или провалидировать
+.pth-модель на CPU-машине (65+ минут на кейс), доустановите стек поверх
+torch-CPU: `python -m pip install -r requirements-native.txt`
+(setup_env.py шаг 4.6 предложит это сам).
 
 ### Веса
 
@@ -172,10 +201,11 @@ python -m radonc_segmentation.quantization.import_checkpoint --src checkpoint_fi
 - или `settings.ini` → `[inference] ENGINE = nnunet_native`;
 - или разово: `python -m radonc_segmentation.pipeline P110 --engine nnunet_native`.
 
-Без CUDA запуск блокируется с объяснением (нативный nnUNet на CPU —
-65+ минут на кейс против ~6 минут у INT8; для проверки эквивалентности
-движков есть `--allow-cpu` в `native_infer.py`). GUI при старте пишет
-в лог, доступна ли CUDA.
+Без CUDA нативный запуск блокируется с объяснением (нативный nnUNet на
+CPU — 65+ минут на кейс против ~6 минут у INT8). Для проверки
+эквивалентности движков добавьте `--allow-cpu`; GUI при выборе
+`nnunet_native` без CUDA сам спросит «Запустить на CPU?» и подставит
+флаг. GUI при старте пишет в лог, доступна ли CUDA.
 
 ### Проверка качества
 
@@ -198,8 +228,10 @@ python -m radonc_segmentation.quantization.validate_model --model headandneck/di
 ├── nnunet_gui_pyside.spec     ← рецепт сборки exe (PyInstaller)
 ├── settings.example.ini       ← шаблон настроек (копируйте в settings.ini)
 ├── requirements.txt           ← зависимости пайплайна и GUI
-├── requirements-quantization.txt ← опц. пакеты импорта/квантизации (torch, nncf)
-├── requirements-gpu.txt       ← опц. пакеты GPU-инференса (torch CUDA, nnunetv2)
+├── requirements-torch-cpu.txt ← опц. PyTorch CPU-сборка (ставит setup_env.py)
+├── requirements-quantization.txt ← опц. пакеты импорта/квантизации (onnx, nncf)
+├── requirements-native.txt    ← опц. стек нативного движка без torch (CPU-машины)
+├── requirements-gpu.txt       ← опц. GPU-инференс: torch CUDA + весь нативный стек
 ├── pyproject.toml             ← метаданные пакета (pip install -e ., экстры)
 ├── models\                    ← СЮДА кладутся веса (пустая, см. example.txt)
 ├── patients\                  ← данные пациентов (создаётся при импорте)

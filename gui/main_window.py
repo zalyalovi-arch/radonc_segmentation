@@ -422,7 +422,7 @@ class MainWindow(QMainWindow):
             # доступность CUDA (для движка nnunet_native) — той же задачей,
             # т.к. фоновых задач у GUI одна за разом
             ok = config.cuda_available(python=PYTHON_EXE, log=log)
-            log(f"[GUI] CUDA: {'доступна — движок nnunet_native готов' if ok else 'недоступна (native-движок работать не будет)'}\n")
+            log(f"[GUI] CUDA: {'доступна — движок nnunet_native готов (GPU)' if ok else 'недоступна (native-движок — только медленный CPU-запуск после подтверждения)'}\n")
             return r.returncode
 
         def after(ok, title):
@@ -447,7 +447,8 @@ class MainWindow(QMainWindow):
                   self.entryStride, self.lblStride):
             w.setEnabled(not native)
         self.lblInfo.setText(
-            "Движок: nnunet_native (оригинальный nnUNet, GPU CUDA) — "
+            "Движок: nnunet_native (оригинальный nnUNet; на NVIDIA GPU — основной "
+            "режим, без CUDA возможен медленный CPU-запуск) — "
             "вариант/кроп/async не применяются, модель нужна как .pth"
             if native else
             f"Модель: {config.MODEL} · устройство: {str(config.DEVICE).upper()} · "
@@ -493,19 +494,24 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", "Импортируйте DICOM или выберите ID пациента.")
             return
         engine = self.cmbEngine.currentText()
+        allow_cpu = False
         if engine == "nnunet_native" and config.cuda_available() is False:
             answer = QMessageBox.question(
                 self, "Нет CUDA",
                 "CUDA недоступна (нет NVIDIA GPU, либо в окружение не установлены\n"
-                "пакеты GPU-инференса: pip install -r requirements-gpu.txt).\n\n"
+                "пакеты нативного движка: pip install -r requirements-gpu.txt\n"
+                "(NVIDIA) или requirements-native.txt (CPU)).\n\n"
                 "Нативный nnUNet на CPU КРАЙНЕ медленный (~65+ минут на кейс).\n"
-                "Запустить всё равно? (для проверки эквивалентности)",
+                "Запустить всё равно на CPU? (для проверки эквивалентности)",
                 QMessageBox.Yes | QMessageBox.No)
             if answer != QMessageBox.Yes:
                 return
+            allow_cpu = True
         try:
             cmd = self._python_cmd("radonc_segmentation.pipeline", self.patient_id, "--no-export",
                                    "--engine", engine)
+            if allow_cpu:
+                cmd.append("--allow-cpu")
             if engine != "nnunet_native":
                 cmd += ["--variant", self.cmbVariant.currentText()]
         except RuntimeError as e:
@@ -653,8 +659,10 @@ class MainWindow(QMainWindow):
         answer = QMessageBox.question(
             self, "Пакеты квантизации",
             "Установить пакеты импорта/квантизации в окружение nnunet_env?\n"
-            "(torch CPU, onnx, nncf и др. — ~2 ГБ загрузок; без них работают все\n"
-            "функции, кроме «Импорт модели» и «Квантизация»)",
+            "(onnx, nncf и др. — ~0.3 ГБ; без них работают все функции, кроме\n"
+            "«Импорт модели» и «Квантизация». Нужен torch: если его ещё нет,\n"
+            "запустите python setup_env.py — он поставит CPU-сборку; на машине\n"
+            "с NVIDIA возможна CUDA-сборка, квантизации подходит любая)",
             QMessageBox.Yes | QMessageBox.No)
         if answer != QMessageBox.Yes:
             return

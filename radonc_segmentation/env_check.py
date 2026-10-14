@@ -31,8 +31,10 @@ REQ_PATH = os.path.join(_PROJECT_DIR, "requirements.txt")
 # опциональные пакеты (импорт .pth -> IR, INT8-квантизация): отсутствие
 # НЕ мешает инференсу, поэтому проверяются отдельно и без кода ошибки
 QUANT_REQ_PATH = os.path.join(_PROJECT_DIR, "requirements-quantization.txt")
-# опциональные пакеты нативного GPU-инференса (torch CUDA + nnunetv2);
-# конфликтуют с quantization по сборке torch — ставится что-то одно
+# стек нативного nnUNet-движка без torch (для машин без NVIDIA поверх
+# torch-CPU); на GPU-машинах его заменяет requirements-gpu.txt
+NATIVE_REQ_PATH = os.path.join(_PROJECT_DIR, "requirements-native.txt")
+# опциональные пакеты нативного GPU-инференса (torch CUDA + nnunetv2)
 GPU_REQ_PATH = os.path.join(_PROJECT_DIR, "requirements-gpu.txt")
 
 # Дистрибутивы, без которых скрипты падают сразу (имена как в requirements.txt).
@@ -112,8 +114,16 @@ def _num(s):
         return None
 
 
+def _base_version(v):
+    """Версия без локального суффикса сборки: '2.8.0+cu126' -> '2.8.0'."""
+    return v.split("+", 1)[0]
+
+
 def _spec_ok(spec, installed):
-    """Грубая проверка 'spec' (поддерживаются ==, !=, >=, <=, >, <) против установленной."""
+    """Грубая проверка 'spec' (поддерживаются ==, !=, >=, <=, >, <) против установленной.
+    Пин с суффиксом сборки (==2.8.0+cpu / ==2.8.0+cu126) сравнивается по базовой
+    версии: в окружении стоит одна сборка torch под железо, а квантизация и
+    нативный движок работают с любой — суффикс лишь фиксирует, какую ставил pip."""
     if not spec:
         return True
     for part in spec.split(","):
@@ -124,7 +134,11 @@ def _spec_ok(spec, installed):
         if not m:
             return True  # непонятная спецификация — не блокируем
         op, ver = m.group(1), m.group(2).strip()
-        if op == "==":
+        if op in ("==", "!=") and "+" in ver:
+            same_base = _base_version(installed) == _base_version(ver)
+            if (op == "==") != same_base:
+                return False
+        elif op == "==":
             if installed != ver:
                 return False
         elif op == "!=":
@@ -179,9 +193,9 @@ def check(critical=None):
 
 
 def check_optional(path=QUANT_REQ_PATH):
-    """(problems, total) по requirements-quantization.txt. Проблемы носят
-    информационный характер: без этих пакетов не работают только
-    «Импорт модели»/«Квантизация», инференс работает."""
+    """(problems, total) по опциональному requirements-файлу. Проблемы носят
+    информационный характер: без них не работает только соответствующая
+    функция (квантизация / нативный движок), инференс работает."""
     if not os.path.isfile(path):
         return [], 0
     problems = []
@@ -244,8 +258,8 @@ def main():
         print()
         print(_INSTALL_HINT)
 
-    # опциональные пакеты квантизации — информационно, на код возврата не влияют
-    q_problems, q_total = check_optional()
+    # опциональные наборы — информационно, на код возврата не влияют
+    q_problems, q_total = check_optional(QUANT_REQ_PATH)
     if q_total:
         if q_problems:
             print(f"\nОпционально (квантизация/импорт .pth): не хватает {len(q_problems)} из {q_total}: "
@@ -255,16 +269,34 @@ def main():
         else:
             print(f"Опциональные пакеты квантизации ({q_total}): все на месте.")
 
-    # опциональные пакеты GPU-инференса (nnunet_native) — тоже информационно
-    g_problems, g_total = check_optional(GPU_REQ_PATH)
-    if g_total:
-        if g_problems:
-            print(f"Опционально (нативный GPU-инференс): не хватает {len(g_problems)} из {g_total}: "
-                  + ", ".join(p["name"] for p in g_problems))
-            print("  Установка: python -m pip install -r requirements-gpu.txt\n"
-                  "  (нужна NVIDIA GPU; конфликтует по torch с requirements-quantization.txt)")
+    # torch — одна сборка на окружение (cpu или cu126); пины с +суффиксом
+    # проверяются по базовой версии, поэтому любая установленная сборка годится
+    torch_ver = _installed_version("torch")
+    if torch_ver is None:
+        print("\nОпционально (torch): не установлен — «Импорт модели»/«Квантизация» "
+              "и нативный движок не заработают.")
+        print("  Установка: python -m pip install -r requirements-torch-cpu.txt\n"
+              "  (на машине с NVIDIA GPU — requirements-gpu.txt: тот же torch, CUDA-сборка)")
+    else:
+        print(f"\ntorch: {torch_ver}"
+              + (" (CUDA-сборка)" if "+cu" in torch_ver else " (CPU-сборка)"))
+
+    # стек нативного nnUNet-движка (без torch) и GPU-набор — тоже информационно
+    for path, title, hint in (
+        (NATIVE_REQ_PATH, "нативный nnUNet-движок (CPU-инференс, КРАЙНЕ медленно)",
+         "  Установка: python -m pip install -r requirements-native.txt"),
+        (GPU_REQ_PATH, "нативный GPU-инференс (NVIDIA)",
+         "  Установка: python -m pip install -r requirements-gpu.txt"),
+    ):
+        problems_n, total_n = check_optional(path)
+        if not total_n:
+            continue
+        if problems_n:
+            print(f"Опционально ({title}): не хватает {len(problems_n)} из {total_n}: "
+                  + ", ".join(p["name"] for p in problems_n))
+            print(hint)
         else:
-            print(f"Опциональные пакеты GPU-инференса ({g_total}): все на месте.")
+            print(f"Опционально ({title}): все на месте.")
 
     if args.json:
         print("__JSON__" + json.dumps({

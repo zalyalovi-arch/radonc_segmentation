@@ -1,0 +1,26 @@
+# ============================================================
+# requirements-native.txt — ОПЦИОНАЛЬНЫЕ пакеты нативного nnUNet-
+# движка (nnunet_native, ENGINE в settings.ini) для машин БЕЗ
+# NVIDIA GPU: стек nnunetv2 поверх уже установленного torch-CPU
+# (requirements-torch-cpu.txt). Инференс при этом идёт на CPU
+# (КРАЙНЕ медленно, ~65+ мин/кейс) — только для проверки
+# эквивалентности движков и валидации .pth-моделей.
+#
+#   python -m pip install -r requirements-native.txt
+#
+# Для машин С NVIDIA GPU ставьте requirements-gpu.txt (тот же
+# стек + torch CUDA): он заменяет собой и этот файл, и
+# requirements-torch-cpu.txt — сборка torch в окружении одна.
+# ============================================================
+
+# --- nnU-Net v2 и его прямые зависимости (версии из проверенного окружения) ---
+nnunetv2==2.6.2
+acvl_utils==0.2.5
+batchgenerators==0.25.1
+batchgeneratorsv2==0.3.0
+dynamic_network_architectures==0.4.2
+einops==0.8.1
+yacs==0.1.8
+tifffile==2025.5.10
+pandas==2.2.3
+scikit-learn==1.7.2

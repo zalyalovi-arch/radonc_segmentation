@@ -15,7 +15,8 @@
 #   python -m radonc_segmentation.native.native_infer P110
 #   python -m radonc_segmentation.native.native_infer P110 --folds 0
 # Модель берётся из settings.ini [model] MODEL (или --model).
-# Требуется pip install -r requirements-gpu.txt (torch CUDA + nnunetv2).
+# Требуется стек nnunetv2: requirements-gpu.txt (NVIDIA, основной режим)
+# или requirements-native.txt (поверх torch-CPU, только CPU-проверки).
 # ============================================================
 import argparse
 import csv
@@ -150,7 +151,8 @@ def main():
             "CUDA недоступна — нативный nnUNet без GPU КРАЙНЕ медленный "
             "(~65+ мин/кейс против ~6 мин у OpenVINO INT8).\n"
             "Варианты: работайте движком openvino (по умолчанию, settings.ini "
-            "[inference] ENGINE), либо запустите с --allow-cpu для проверки эквивалентности.")
+            "[inference] ENGINE), либо запустите с --allow-cpu для проверки "
+            "эквивалентности (в pipeline.py и GUI этот флаг подставляется сам).")
     device = torch.device("cuda" if cuda_ok else "cpu")
     if not cuda_ok:
         print("!!! ВНИМАНИЕ: CPU-режим — 65+ минут на кейс. Ждите или прерывайте.")

@@ -97,6 +97,8 @@ def run_inference(case, img_path, out_path, model_name, args, tmp_dir):
         cmd = [sys.executable, "-m", module,
                case, "--input", img_path, "--output", out_path,
                "--force", "--model", model_name]
+        if getattr(args, "allow_cpu", False):
+            cmd.append("--allow-cpu")
     else:
         module = ("radonc_segmentation.aligned.infer_ov_aligned"
                   if str(config.DEFAULT_VARIANT).lower() == "aligned"
@@ -145,6 +147,9 @@ def main():
     p.add_argument("--device", default=None, choices=["cpu", "gpu", "gpu.0"])
     p.add_argument("--engine", default=None, choices=list(config.VALID_ENGINES),
                    help=f"движок теста (по умолчанию из settings.ini: {config.DEFAULT_ENGINE})")
+    p.add_argument("--allow-cpu", action="store_true",
+                   help="только для --engine nnunet_native: разрешить CPU вместо CUDA "
+                        "(КРАЙНЕ медленно — проверка эквивалентности движков)")
     args = p.parse_args()
 
     # проверка модели до долгих прогонов

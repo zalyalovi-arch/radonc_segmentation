@@ -69,16 +69,20 @@ def run_step(title, cmd):
     return dt
 
 
-def infer_step_command(engine, variant, patient_id, common_flags, ov_flags):
+def infer_step_command(engine, variant, patient_id, common_flags, ov_flags, allow_cpu=False):
     """Единая точка выбора движка инференса (шаг 3). Возвращает
     (cmd, seg_name, метка для лога).
     common_flags — понятны всем движкам (--stride/--folds/--model),
-    ov_flags — только OpenVINO (--no-crop/--no-async/--device)."""
+    ov_flags — только OpenVINO (--no-crop/--no-async/--device),
+    allow_cpu — разрешить native-движку CPU вместо CUDA (движок
+    nnunet_native на CPU КРАЙНЕ медленный; флаг только для проверок)."""
     if engine == "nnunet_native":
         # нативный nnUNet: преобработку/sliding window делает сам,
         # варианты legacy/aligned не участвуют
         cmd = ([sys.executable, "-m", "radonc_segmentation.native.native_infer",
                 patient_id, "--force"] + common_flags)
+        if allow_cpu:
+            cmd.append("--allow-cpu")
         return cmd, f"{patient_id}_native.nii.gz", "native"
     if variant == "aligned":
         cmd = [sys.executable, "-m", "radonc_segmentation.aligned.infer_ov_aligned",
@@ -101,6 +105,9 @@ def main():
     p.add_argument("--engine", default=config.DEFAULT_ENGINE, choices=list(config.VALID_ENGINES),
                    help=f"Движок инференса. По умолчанию из settings.ini: {config.DEFAULT_ENGINE}. "
                         f"nnunet_native требует .pth-модель и GPU (см. README)")
+    p.add_argument("--allow-cpu", action="store_true",
+                   help="Только для --engine nnunet_native: разрешить CPU вместо CUDA "
+                        "(КРАЙНЕ медленно, ~65+ мин/кейс — проверка эквивалентности движков)")
     p.add_argument("--stride", type=float, default=config.STEP_SIZE_RATIO)
     p.add_argument("--no-crop", action="store_true")
     p.add_argument("--no-async", action="store_true")
@@ -167,7 +174,8 @@ def main():
 
         # 3. Инференс
         infer_cmd, seg_name, _ = infer_step_command(
-            args.engine, args.variant, patient_id, infer_flags, ov_flags)
+            args.engine, args.variant, patient_id, infer_flags, ov_flags,
+            allow_cpu=args.allow_cpu)
         timings["infer"] = run_step(f"Инференс ({variant_label})", infer_cmd)
 
         # 3.5. Per-структурный постпроцессинг по шаблону (до RTSTRUCT)

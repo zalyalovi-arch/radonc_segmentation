@@ -6,9 +6,12 @@
 #
 #   python -m pip install -r requirements-gpu.txt
 #
-# ВНИМАНИЕ: конфликтует с requirements-quantization.txt — оба ставят
-# torch, но разные сборки (cu126 vs cpu). В одно окружение ставьте
-# ЛИБО то (GPU-инференс), ЛИБО другое (импорт .pth -> IR и INT8).
+# Ставит torch CUDA-сборкой (+cu126): сборка torch в окружении
+# одна — этот файл заменяет requirements-torch-cpu.txt. В отличие
+# от старой политики конфликта с квантизацией НЕТ: пакеты
+# requirements-quantization.txt совместимы с обеими сборками torch.
+# Файл включает полный стек нативного движка — requirements-native.txt
+# отдельно ставить не нужно.
 # Базовые пакеты requirements.txt ставятся ПЕРЕД этим файлом.
 # ============================================================
 --extra-index-url https://download.pytorch.org/whl/cu126

@@ -1,0 +1,17 @@
+# ============================================================
+# requirements-torch-cpu.txt — PyTorch CPU-сборка.
+# Ставится setup_env.py (шаг 4), если torch ещё не установлен;
+# вручную: python -m pip install -r requirements-torch-cpu.txt
+#
+# torch нужен пакетам квантизации (requirements-quantization.txt:
+# экспорт .pth -> ONNX -> OpenVINO IR, NNCF) и нативному движку
+# (requirements-native.txt). CPU-сборка подходит обоим сценариям.
+#
+# На машине с NVIDIA GPU вместо этого файла ставьте
+# requirements-gpu.txt (torch==2.8.0+cu126) — сборка torch в
+# окружении одна: либо cpu, либо cu126. Квантизация и нативный
+# движок работают с обеими сборками.
+# ============================================================
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.8.0+cpu

@@ -4,9 +4,11 @@
 # Установка в окружение (после setup_env.py / requirements.txt):
 #   python -m pip install -e .
 # Экстры:
-#   python -m pip install -e .[quantization]   # обучение и INT8-квантизация
-#   python -m pip install -e .[gpu]            # нативный nnUNet-инференс на NVIDIA GPU
+#   python -m pip install -e .[quantization]   # импорт .pth -> IR и INT8-квантизация (нужен torch: requirements-torch-cpu.txt)
+#   python -m pip install -e .[native]         # стек нативного движка без torch (поверх установленного torch)
 #   python -m pip install -e .[dev]            # сборка exe и тесты
+# GPU-машины: вместо первых двух — файл целиком (torch CUDA + весь стек):
+#   python -m pip install -r requirements-gpu.txt
 # Запуск после установки (или из корня проекта без установки):
 #   python -m gui.main
 #   python -m radonc_segmentation.pipeline <PATIENT_ID>
@@ -34,23 +36,25 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Обучение своей модели и INT8-квантизация (scripts-обёртки в
-# radonc_segmentation/quantization/). torch ставить CPU-сборкой:
-#   pip install torch==2.8.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+# Импорт .pth -> IR и INT8-квантизация (scripts-обёртки в
+# radonc_segmentation/quantization/). Работает с ЛЮБОЙ сборкой torch:
+# CPU-сборку ставит requirements-torch-cpu.txt / setup_env.py, CUDA —
+# requirements-gpu.txt. Экстра не тянет torch, чтобы не ломать уже
+# установленную сборку.
 quantization = [
-    "torch==2.8.0+cpu",
     "onnx==1.17.0",
     "onnxruntime>=1.20.0",
     "nncf==2.19.0",
     "jstyleson==0.0.2",
     "dynamic_network_architectures==0.4.2",
 ]
-# Нативный nnUNet-инференс на NVIDIA GPU (движок nnunet_native). Пины
-# повторяют requirements-gpu.txt; CUDA-сборку torch (+cu126) pip найдёт
-# только с её индексом, поэтому надёжнее ставить файлом:
-#   pip install -r requirements-gpu.txt
-gpu = [
-    "torch==2.8.0+cu126",
+# Стек нативного nnUNet-движка (nnunet_native) без torch: поверх уже
+# установленного torch (CPU — только медленный CPU-инференс; CUDA —
+# основной GPU-режим). GPU-машинам проще ставить файлом целиком:
+#   pip install -r requirements-gpu.txt   (torch cu126 + весь этот стек)
+# CUDA-сборку torch (+cu126) pip найдёт только с её индексом, поэтому
+# torch экстрой не ставится — только файлом.
+native = [
     "nnunetv2==2.6.2",
     "acvl_utils==0.2.5",
     "batchgenerators==0.25.1",
