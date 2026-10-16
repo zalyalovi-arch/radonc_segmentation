@@ -133,6 +133,24 @@ def test_trainer_shim_substitutes_base_class():
         tr_dir, "nnUNetTrainerNoMirroring", "nnunetv2.training.nnUNetTrainer") is not nnUNetTrainer
 
 
+def test_lowmem_export_shim_replaces_iterator_method():
+    # Windows: штатный экспорт через пул падает на pickle логитов >4 ГБ
+    # (WriteFile ограничен DWORD) — шим заменяет predict_from_data_iterator
+    # синхронной версией без multiprocessing
+    pytest.importorskip("nnunetv2")
+    from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
+    original = nnUNetPredictor.predict_from_data_iterator
+    try:
+        native_infer._install_lowmem_export_shim()
+        assert nnUNetPredictor.predict_from_data_iterator is not original
+        # повторная установка — no-op (не оборачивает саму себя второй раз)
+        native_infer._install_lowmem_export_shim()
+        assert nnUNetPredictor.predict_from_data_iterator.__name__ == \
+            "predict_from_data_iterator_sync"
+    finally:
+        nnUNetPredictor.predict_from_data_iterator = original
+
+
 # ---------- диспетчер движка в pipeline ----------
 
 def test_infer_step_command_openvino_legacy():

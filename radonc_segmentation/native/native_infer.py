@@ -22,6 +22,7 @@ import argparse
 import csv
 import os
 import shutil
+import sys
 import time
 
 from radonc_segmentation import config
@@ -61,6 +62,62 @@ def _install_trainer_shim():
     _finder._radonc_orig = orig
     pfrm.recursive_find_python_class = _finder
     pfrm._radonc_shim = True
+
+
+# На Windows штатный экспорт предсказания идёт через multiprocessing-пул:
+# nnUNetPredictor pickle'ит ПОЛНЫЙ массив логитов (32 класса x объём, ~4.7 ГБ
+# для H&N-кейса) и передаёт его воркеру одной записью WriteFile. Больше
+# 32-битного лимита DWORD (4 ГБ) такая запись невозможна — пул всегда падает
+# с WinError 1450 независимо от объёма RAM. Подменяем predict_from_data_iterator
+# синхронной версией: тот же код nnunetv2 (predict_logits_from_preprocessed_data
+# + export_prediction_from_logits), но экспорт в основном процессе, без
+# pickle/пайпа. Однокейсовые прогоны от асинхронности ничего не теряют.
+def _install_lowmem_export_shim():
+    import numpy as np
+    import torch
+    import nnunetv2.inference.predict_from_raw_data as pfrm
+    from nnunetv2.inference.predict_from_raw_data import export_prediction_from_logits
+    if getattr(pfrm, "_radonc_lowmem_export", False):
+        return
+
+    def predict_from_data_iterator_sync(self, data_iterator,
+                                        save_probabilities=False,
+                                        num_processes_segmentation_export=None):
+        ret = []
+        for preprocessed in data_iterator:
+            data = preprocessed['data']
+            if isinstance(data, str):
+                tmp = data
+                data = torch.from_numpy(np.load(data))
+                os.remove(tmp)
+            ofile = preprocessed['ofile']
+            properties = preprocessed['data_properties']
+            if ofile is not None:
+                print(f'\nPredicting {os.path.basename(ofile)}:')
+            else:
+                print(f'\nPredicting image of shape {data.shape}:')
+            print(f'perform_everything_on_device: {self.perform_everything_on_device}')
+            prediction = self.predict_logits_from_preprocessed_data(data).cpu().detach().numpy()
+            del data
+            if ofile is not None:
+                print('[native] экспорт: ресемплинг и запись (в основном процессе, '
+                      'low-memory режим Windows)')
+                export_prediction_from_logits(
+                    prediction, properties, self.configuration_manager,
+                    self.plans_manager, self.dataset_json, ofile, save_probabilities)
+                del prediction
+                print(f'done with {os.path.basename(ofile)}')
+            else:
+                print('[native] экспорт в память (синхронно)')
+                ret.append(export_prediction_from_logits(
+                    prediction, properties, self.configuration_manager,
+                    self.plans_manager, self.dataset_json, ofile, save_probabilities))
+        pfrm.compute_gaussian.cache_clear()
+        pfrm.empty_cache(self.device)
+        return ret
+
+    pfrm.nnUNetPredictor.predict_from_data_iterator = predict_from_data_iterator_sync
+    pfrm._radonc_lowmem_export = True
 
 
 def parse_args():
@@ -162,6 +219,8 @@ def main():
 
     native_stage.ensure_dataset_json(model_cfg["dir"])
     _install_trainer_shim()
+    if sys.platform == "win32":
+        _install_lowmem_export_shim()
     try:
         from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
         predictor = nnUNetPredictor(
@@ -186,7 +245,11 @@ def main():
             break
     predictor.predict_from_files(
         [[input_path]], [os.path.join(out_dir, stem)],
-        num_processes_preprocessing=2, num_processes_segmentation_export=2,
+        # по 1 воркеру на препроцессинг/экспорт: каждый spawn-процесс тянет
+        # torch (~0.5 ГБ), на Windows-машинах с 8 ГБ RAM пул из 4 воркеров
+        # падает с WinError 1450 (нехватка системных ресурсов) при экспорте;
+        # предсказание само по себе CPU-bound, воркеры почти не ускоряют
+        num_processes_preprocessing=1, num_processes_segmentation_export=1,
         overwrite=True, save_probabilities=False)
 
     produced = os.path.join(out_dir, stem + ".nii.gz")
