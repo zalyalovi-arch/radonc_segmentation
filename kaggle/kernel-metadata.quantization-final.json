@@ -1,0 +1,1 @@
+{"id": "iliaszalialov/quantization-final", "title": "quantization final", "code_file": "quantization_final.ipynb", "language": "python", "kernel_type": "notebook", "is_private": true, "enable_gpu": false, "enable_internet": true, "dataset_sources": ["iliaszalialov/pruned-results"], "kernel_sources": ["alenasnigireva/nnunet", "iliaszalialov/nnunet-distill"]}
