@@ -43,3 +43,22 @@ screenshots_tmp/
 Thumbs.db
 Desktop.ini
 .venv-nnunet/
+
+# --- локальное Kaggle-хозяйство и токены (не публикуются) ---
+kaggle/accounts/
+kaggle/*.py
+kaggle/*.bat
+kaggle/*.md
+kaggle/nbfinal/
+kaggle/macs_local/
+kaggle/prox_final/
+kaggle/prox_final_push/
+kaggle/prune_kd/
+kaggle/pruning_nb/
+kaggle/iter_final_int8/
+kaggle/quant_prox/
+kaggle/firstn_final/
+kaggle/full/
+
+# --- внутренние исторические доки ---
+docs/
