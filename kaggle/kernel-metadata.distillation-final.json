@@ -1,0 +1,16 @@
+{
+  "id": "iliaszalialov/distillation-final",
+  "title": "distillation final",
+  "code_file": "distillation_final.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "kernel_sources": [
+    "alenasnigireva/nnunet"
+  ],
+  "dataset_sources": [
+    "iliaszalialov/distill55ep"
+  ]
+}
