@@ -33,6 +33,8 @@
 
 ## Прогоны HW-B (MSK-D26-9245), 2026-10-29/30 — автономный валидатор
 
+![Парето: Dice(mean) vs с/патч, HW-B, 10 моделей (stride 0.65, async 6)](assets/benchmarks_pareto_hw_b.png)
+
 Первый прогон офлайн-валидатора (legacy `scripts\validate_model.py`) на прод-машине: 6 моделей × 10 кейсов за один цикл. Каждый прогон оставил в папке модели `validation_log.txt`, `validation_dice.csv`, `validation_timing.csv`, `model_inspection.json` (md5 весов, каналы, квантизация); копия — `logs\validate\hwb_msk_20261030\`. Дополнительно 2026-11-02 тем же валидатором и настройками: `gamma_l2_kdft_INT8` (13:06) и `first_N_pruned_INT8` с активационной INT8 (15:42); копии — `logs\validate\hwb_msk_20261102\`.
 
 **Настройки отличаются от стандарта** (взяты из settings.ini той машины): `stride 0.65` (не 0.5), `N_ASYNC=6` (не 2), `ACCUMULATOR=ram` (не disk). Остальное — стандарт (aligned, кроп on, LATENCY, batch 1, 6 потоков). Внутри секции все строки сравнимы между собой; с HW-A прямого сравнения нет, но повторно протестированные модели сошлись с HW-A в пределах ±0.002.
