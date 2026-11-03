@@ -1,0 +1,12 @@
+{
+  "id": "iliaszalialov/distill-archive",
+  "title": "distill archive",
+  "code_file": "distill-archive-v1.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": ["iliaszalialov/valiadtion-nifti", "iliaszalialov/distill-archive"],
+  "kernel_sources": []
+}
