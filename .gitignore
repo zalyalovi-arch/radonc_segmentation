@@ -35,6 +35,8 @@ _gui_error.log
 *.npz
 *.dcm
 screenshots_tmp/
+l0_scan/ckpt/
+*.pth
 
 # --- IDE / ОС ---
 .vscode/
