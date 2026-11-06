@@ -207,6 +207,9 @@ def main():
         n_async=args.n_async if use_async else 1,
         accumulator=config.ACCUMULATOR,
         batch_size=args.batch,
+        acc_precision=getattr(config, "ACCUMULATOR_PRECISION", "f32"),
+        sched=getattr(config, "PIPELINE_SCHED", "queue"),
+        output_layout=getattr(config, "OUTPUT_LAYOUT", "ncdhw"),
     )
 
     # 7. Возврат кропа и кадра (X, Y, Z)

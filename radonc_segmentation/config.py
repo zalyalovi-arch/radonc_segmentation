@@ -82,6 +82,9 @@ CROP_AIR = True
 AIR_THRESHOLD_HU = -300
 CROP_MARGIN_VOXELS = 10
 ACCUMULATOR = "disk"  # disk | ram
+ACCUMULATOR_PRECISION = "f32"  # f32 | f16 — тип логитов в накопителе (f16 вдвое режет трафик memmap)
+PIPELINE_SCHED = "queue"  # queue | rotate — планировщик async-патчей (rotate копит до переиспользования запроса)
+OUTPUT_LAYOUT = "ncdhw"  # ncdhw | ndhwc — лэйаут выхода модели (ndhwc убирает конверсию выхода ~5% ядра)
 
 # модели и данные. ПУСТОЕ ЗНАЧЕНИЕ = подпапка проекта (переносимо между
 # компьютерами); в settings.ini можно задать и абсолютный путь.
@@ -296,6 +299,9 @@ def _load_settings():
     set_float("inference", "AIR_THRESHOLD_HU", "AIR_THRESHOLD_HU")
     set_int("inference", "CROP_MARGIN_VOXELS", "CROP_MARGIN_VOXELS")
     set_str("inference", "ACCUMULATOR", "ACCUMULATOR")
+    set_str("inference", "ACCUMULATOR_PRECISION", "ACCUMULATOR_PRECISION")
+    set_str("inference", "PIPELINE_SCHED", "PIPELINE_SCHED")
+    set_str("inference", "OUTPUT_LAYOUT", "OUTPUT_LAYOUT")
 
     folds_raw = get("inference", "FOLDS")
     if folds_raw is not None and folds_raw.strip() != "":
@@ -329,6 +335,12 @@ def _load_settings():
         raise SettingsValidationError(f"[settings.ini] device.PERFORMANCE_HINT: допустимо LATENCY | THROUGHPUT | none, получено {g['OV_PERFORMANCE_HINT']!r}")
     if str(g["ACCUMULATOR"]).lower() not in ("disk", "ram"):
         raise SettingsValidationError(f"[settings.ini] inference.ACCUMULATOR: допустимо disk | ram, получено {g['ACCUMULATOR']!r}")
+    if str(g["ACCUMULATOR_PRECISION"]).lower() not in ("f32", "f16"):
+        raise SettingsValidationError(f"[settings.ini] inference.ACCUMULATOR_PRECISION: допустимо f32 | f16, получено {g['ACCUMULATOR_PRECISION']!r}")
+    if str(g["PIPELINE_SCHED"]).lower() not in ("queue", "rotate"):
+        raise SettingsValidationError(f"[settings.ini] inference.PIPELINE_SCHED: допустимо queue | rotate, получено {g['PIPELINE_SCHED']!r}")
+    if str(g["OUTPUT_LAYOUT"]).lower() not in ("ncdhw", "ndhwc"):
+        raise SettingsValidationError(f"[settings.ini] inference.OUTPUT_LAYOUT: допустимо ncdhw | ndhwc, получено {g['OUTPUT_LAYOUT']!r}")
     if str(g["DEFAULT_VARIANT"]).lower() not in ("legacy", "aligned"):
         raise SettingsValidationError(f"[settings.ini] inference.VARIANT: допустимо legacy | aligned, получено {g['DEFAULT_VARIANT']!r}")
     if str(g["DEFAULT_ENGINE"]).lower() not in VALID_ENGINES:

@@ -20,6 +20,7 @@ import time
 
 import numpy as np
 import openvino as ov
+from openvino.preprocess import PrePostProcessor
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
 
@@ -147,17 +148,17 @@ def ensure_device(core, device):
         )
 
 
-def _open_memmaps(tmp_dir, num_classes, shape):
+def _open_memmaps(tmp_dir, num_classes, shape, logits_dtype=np.float32):
     logits_path = os.path.join(tmp_dir, "ensemble_logits.dat")
     weights_path = os.path.join(tmp_dir, "ensemble_weights.dat")
-    logits_bytes = num_classes * int(np.prod(shape)) * 4
+    logits_bytes = num_classes * int(np.prod(shape)) * np.dtype(logits_dtype).itemsize
     free = shutil.disk_usage(tmp_dir).free
     if free < logits_bytes * 1.1:
         raise RuntimeError(
             f"Недостаточно места на диске для временных файлов: нужно ~{logits_bytes / 1e9:.1f} ГБ, "
             f"свободно {free / 1e9:.1f} ГБ ({tmp_dir})"
         )
-    logits_mm = np.memmap(logits_path, dtype=np.float32, mode="w+", shape=(num_classes,) + shape)
+    logits_mm = np.memmap(logits_path, dtype=logits_dtype, mode="w+", shape=(num_classes,) + shape)
     weights_mm = np.memmap(weights_path, dtype=np.float32, mode="w+", shape=shape)
     logits_mm[:] = 0
     weights_mm[:] = 0
@@ -196,6 +197,9 @@ def run_sliding_window(
     n_async=1,
     accumulator="disk",
     batch_size=1,
+    acc_precision="f32",
+    sched="queue",
+    output_layout="ncdhw",
     log=print,
 ):
     """
@@ -229,6 +233,9 @@ def run_sliding_window(
     use_ram = str(accumulator).lower() == "ram"
     if not use_ram:
         os.makedirs(tmp_dir, exist_ok=True)
+    logits_dtype = np.float16 if str(acc_precision).lower() == "f16" else np.float32
+    if logits_dtype is np.float16:
+        log("   Накопление логитов в fp16 (ACCUMULATOR_PRECISION=f16)")
     logits_mm = weights_mm = None
     logits_path = weights_path = None
     fold_times = {}
@@ -236,13 +243,27 @@ def run_sliding_window(
     try:
         if use_ram:
             log("   Накопление логитов в ОЗУ (ACCUMULATOR=ram)")
-            logits_mm = np.zeros((num_classes,) + data_padded.shape, dtype=np.float32)
+            logits_mm = np.zeros((num_classes,) + data_padded.shape, dtype=logits_dtype)
             weights_mm = np.zeros(data_padded.shape, dtype=np.float32)
         else:
             logits_mm, weights_mm, logits_path, weights_path = _open_memmaps(
-                tmp_dir, num_classes, data_padded.shape
+                tmp_dir, num_classes, data_padded.shape, logits_dtype=logits_dtype
             )
         gaussian_map = compute_gaussian_map(patch_size)
+
+        def to_cdhw(a):
+            """Выход модели -> (C,D,H,W) (для батча (B,C,D,H,W)); раскладка определяется формой."""
+            if a.ndim == 4:
+                if a.shape[0] == num_classes:
+                    return a
+                if a.shape[-1] == num_classes:
+                    return a.transpose(3, 0, 1, 2)
+            elif a.ndim == 5:
+                if a.shape[1] == num_classes:
+                    return a
+                if a.shape[-1] == num_classes:
+                    return a.transpose(0, 4, 1, 2, 3)
+            raise RuntimeError(f"Неожиданная форма выхода модели: {a.shape}")
         # Постоянный буфер взвешивания: экономит аллокацию ~250 МБ на каждый патч
         acc_buf = np.empty((num_classes,) + tuple(patch_size), dtype=np.float32)
 
@@ -265,6 +286,12 @@ def run_sliding_window(
                 pz, py, px = patch_size
                 model.reshape({model.input(0).any_name:
                                ov.PartialShape(f"[1..{batch_size},1,{pz},{py},{px}]")})
+            if str(output_layout).lower() == "ndhwc":
+                # просим у плагина выход channels-last: последний conv уже отдаёт
+                # acdeb (NDHWC), поэтому конверсия acdeb->abcde (~5% ядра) исчезает
+                pp = PrePostProcessor(model)
+                pp.output().tensor().set_layout(ov.Layout("NDHWC"))
+                model = pp.build()
             compiled = core.compile_model(model, device, config=compile_config)
             infer_request = compiled.create_infer_request()
             in_name = compiled.input(0).any_name
@@ -292,7 +319,54 @@ def run_sliding_window(
                                 x0:x0 + patch_size[2]]
                 )
 
-            if n_async > 1:
+            if n_async > 1 and str(sched).lower() == "rotate":
+                # rotate-планировщик: ждём конкретный запрос, копим его результат
+                # и только потом переиспользуем слот — копия выхода не нужна,
+                # накопление перекрывается с инференсом остальных слотов.
+                # Вход пишем прямо в тензор запроса (np.copyto): ноль аллокаций
+                # и одна копия вместо двух на патч.
+                rot_reqs = [compiled.create_infer_request() for _ in range(n_async)]
+                in_bufs = [np.asarray(r.get_input_tensor(0).data) for r in rot_reqs]
+
+                def _start(slot, batch_indices):
+                    if len(batch_indices) == 1 and in_bufs[slot].shape == (1, 1) + tuple(patch_size):
+                        z0, y0, x0 = batch_indices[0]
+                        np.copyto(in_bufs[slot][0, 0],
+                                  data_padded[z0:z0 + patch_size[0],
+                                              y0:y0 + patch_size[1],
+                                              x0:x0 + patch_size[2]])
+                        rot_reqs[slot].start_async()
+                    else:
+                        # динамический батч или неожиданная форма входа — старый путь
+                        if len(batch_indices) == 1:
+                            z0, y0, x0 = batch_indices[0]
+                            tensor = _extract(z0, y0, x0).reshape((1, 1) + patch_size)
+                        else:
+                            tensor = np.stack([_extract(*idx) for idx in batch_indices])[:, None]
+                        rot_reqs[slot].start_async({in_name: tensor})
+
+                def _collect(slot, batch_indices):
+                    nonlocal done_count
+                    rot_reqs[slot].wait()
+                    c = to_cdhw(np.asarray(rot_reqs[slot].get_output_tensor(0).data))
+                    for i, (z0, y0, x0) in enumerate(batch_indices):
+                        accumulate(c[i], z0, y0, x0)
+                    done_count += len(batch_indices)
+                    pbar.update(len(batch_indices))
+
+                live = []
+                for k, batch_indices in enumerate(batches[:n_async]):
+                    _start(k, batch_indices)
+                    live.append((k, batch_indices))
+                for batch_indices in batches[n_async:]:
+                    slot, done_ud = live.pop(0)
+                    _collect(slot, done_ud)
+                    _start(slot, batch_indices)
+                    live.append((slot, batch_indices))
+                while live:
+                    slot, done_ud = live.pop(0)
+                    _collect(slot, done_ud)
+            elif n_async > 1:
                 done_q: _queue.Queue = _queue.Queue()
 
                 def _cb(infer_request, userdata):
@@ -315,15 +389,17 @@ def run_sliding_window(
                     # Разбираем готовые результаты, пока основной поток готовился к следующей пачке
                     while done_q.qsize() >= n_async:
                         batch_ud, logits = done_q.get()
+                        c = to_cdhw(logits)
                         for i, (z0, y0, x0) in enumerate(batch_ud):
-                            accumulate(logits[i], z0, y0, x0)
+                            accumulate(c[i], z0, y0, x0)
                         done_count += len(batch_ud)
                         pbar.update(len(batch_ud))
                 async_q.wait_all()
                 while not done_q.empty():
                     batch_ud, logits = done_q.get()
+                    c = to_cdhw(logits)
                     for i, (z0, y0, x0) in enumerate(batch_ud):
-                        accumulate(logits[i], z0, y0, x0)
+                        accumulate(c[i], z0, y0, x0)
                     done_count += len(batch_ud)
                     pbar.update(len(batch_ud))
                 del async_q
@@ -335,7 +411,7 @@ def run_sliding_window(
                     else:
                         tensor = np.stack([_extract(*idx) for idx in batch_indices])[:, None]
                     result = infer_request.infer(inputs={in_name: tensor})
-                    logits = result[out_name]
+                    logits = to_cdhw(result[out_name])
                     for i, (z0, y0, x0) in enumerate(batch_indices):
                         accumulate(logits[i], z0, y0, x0)
                     done_count += len(batch_indices)

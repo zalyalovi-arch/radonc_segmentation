@@ -1,0 +1,12 @@
+{
+  "id": "iliaszalialov/requant-cbpd-exp",
+  "title": "requant cbpd exp",
+  "code_file": "requant_cbpd_exp.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": ["iliaszalialov/distill55ep"],
+  "kernel_sources": ["alenasnigireva/nnunet"]
+}
