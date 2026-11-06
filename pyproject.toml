@@ -33,6 +33,7 @@ dependencies = [
     "pydicom==3.0.1",
     "nibabel==5.3.3",
     "rt-utils==1.2.7",
+    "numba==0.68.1",
 ]
 
 [project.optional-dependencies]
