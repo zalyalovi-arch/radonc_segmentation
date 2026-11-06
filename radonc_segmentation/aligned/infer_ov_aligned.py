@@ -210,6 +210,10 @@ def main():
         pad_value=0.0,  # nnUNet пэддит нормализованный том нулями
         n_async=args.n_async if use_async else 1,
         accumulator=config.ACCUMULATOR,
+        batch_size=getattr(args, "batch", 1),
+        acc_precision=getattr(config, "ACCUMULATOR_PRECISION", "f32"),
+        sched=getattr(config, "PIPELINE_SCHED", "queue"),
+        output_layout=getattr(config, "OUTPUT_LAYOUT", "ncdhw"),
     )
 
     # 5. Возврат кропа и ресемплинг сегментации в исходную геометрию пациента
