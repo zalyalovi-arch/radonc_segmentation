@@ -27,7 +27,9 @@ from tqdm import tqdm
 try:
     from numba import njit, prange
     _HAS_NUMBA = True
-except ImportError:
+except Exception:
+    # не только ImportError: numba может падать на чужих рантаймах
+    # (например, старый coverage на Kaggle py3.13) — тихий numpy-фолбэк
     _HAS_NUMBA = False
 
 
