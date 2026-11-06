@@ -146,10 +146,11 @@ def main():
     t_total = time.perf_counter()
 
     # 1. Загрузка (nibabel отдаёт (X, Y, Z))
+    t_stage = time.perf_counter()
     nii = nib.load(input_path)
     raw_xyz = nii.get_fdata(dtype=np.float32)
     affine = nii.affine
-    print(f"Загружен объём (X,Y,Z): {raw_xyz.shape}")
+    print(f"Загружен объём (X,Y,Z): {raw_xyz.shape} [{time.perf_counter() - t_stage:.1f} с]")
 
     # 2. Кадр модели (Z, Y, X)
     raw_zyx = np.transpose(raw_xyz, (2, 1, 0))
@@ -157,6 +158,7 @@ def main():
     del raw_xyz
 
     # 3. Bounding box тела по HU (по сырому объёму, ДО нормализации)
+    t_stage = time.perf_counter()
     bbox = None
     if use_crop:
         bbox = core_mod.body_bbox_zyx(
@@ -172,7 +174,9 @@ def main():
     # 4. Нормализация по ПОЛНОМУ объёму (элементарная операция — кроп на статистику
     #    не влияет; результат идентичен slwinensembz.py)
     print("Нормализация (перцентили 0.5/99.5 -> [0,1] -> z-score)...")
+    t_stage = time.perf_counter()
     data = ct_normalize(raw_zyx).astype(np.float32)
+    print(f"[нормализация: {time.perf_counter() - t_stage:.1f} с]")
     del raw_zyx
 
     # 5. Кроп уже нормализованного объёма
@@ -213,13 +217,17 @@ def main():
     )
 
     # 7. Возврат кропа и кадра (X, Y, Z)
+    t_stage = time.perf_counter()
     if bbox is not None:
         seg = core_mod.uncrop_bbox(seg, original_shape=full_shape_zyx, bbox=bbox)
     seg_xyz = np.transpose(seg, (2, 1, 0))
+    print(f"[возврат кропа и кадра: {time.perf_counter() - t_stage:.1f} с]")
 
     # 8. Сохранение
+    t_stage = time.perf_counter()
     seg_nii = nib.Nifti1Image(seg_xyz, affine)
     nib.save(seg_nii, output_path)
+    print(f"[сохранение: {time.perf_counter() - t_stage:.1f} с]")
     total_s = time.perf_counter() - t_total
 
     print(f"Готово: {output_path}")

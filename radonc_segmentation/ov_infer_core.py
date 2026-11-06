@@ -427,20 +427,26 @@ def run_sliding_window(
             del model, compiled, infer_request
             gc.collect()
 
-        # --- Финализация ---
+        # --- Финализация (однопроходная): деление на веса и усреднение фолдов
+        # делаем в чанке argmax-цикла, а не in-place во всём логит-хранилище —
+        # экономит ~16 ГБ трафика memmap; арифметика на элемент та же -> бит-в-бит
+        t_fin = time.perf_counter()
         log("   Нормировка по гауссовым весам и усреднение фолдов...")
-        safe_weights = np.where(weights_mm > 1e-8, weights_mm, 1.0)
-        logits_mm /= safe_weights
-        del safe_weights
-        logits_mm /= len(folds)
+        weights_full = np.array(weights_mm, dtype=np.float32)  # (Z,Y,X) в ОЗУ
+        safe_weights = np.where(weights_full > 1e-8, weights_full, 1.0)
+        del weights_full
+        n_folds = len(folds)
 
         seg = np.empty(data_padded.shape, dtype=np.uint8)
         z_chunk = 16
         for z0 in range(0, data_padded.shape[0], z_chunk):
             z1 = min(z0 + z_chunk, data_padded.shape[0])
-            block = np.asarray(logits_mm[:, z0:z1], dtype=np.float32)
-            seg[z0:z1] = np.argmax(block, axis=0).astype(np.uint8)
+            block = np.array(logits_mm[:, z0:z1])  # копия чанка в ОЗУ (нативный dtype)
+            block /= safe_weights[z0:z1]
+            block /= n_folds
+            seg[z0:z1] = np.argmax(block.astype(np.float32), axis=0).astype(np.uint8)
             del block
+        log(f"   Финализация: {time.perf_counter() - t_fin:.1f} с")
 
         seg = unpad(seg, pad_needed)
         total_s = time.perf_counter() - t_start
