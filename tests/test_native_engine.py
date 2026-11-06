@@ -153,19 +153,20 @@ def test_lowmem_export_shim_replaces_iterator_method():
 
 # ---------- диспетчер движка в pipeline ----------
 
-def test_infer_step_command_openvino_legacy():
+def test_infer_step_command_openvino_legacy_deprecated():
+    # legacy устарел (вердикт 07.11): приводится к aligned, команда та же
     cmd, seg, label = pipeline.infer_step_command(
         "openvino", "legacy", "P007", ["--folds", "0"], ["--no-crop"])
     assert "radonc_segmentation.infer_ov" in " ".join(cmd)
     assert "--force" in cmd
-    assert seg == "P007.nii.gz" and label == "legacy"
+    assert seg == "P007.nii.gz" and label == "aligned"
 
 
 def test_infer_step_command_openvino_aligned():
     cmd, seg, label = pipeline.infer_step_command(
         "openvino", "aligned", "P007", [], ["--no-async"])
-    assert "aligned.infer_ov_aligned" in " ".join(cmd)
-    assert seg == "P007_aligned.nii.gz" and label == "aligned"
+    assert "radonc_segmentation.infer_ov" in " ".join(cmd)
+    assert seg == "P007.nii.gz" and label == "aligned"
 
 
 def test_infer_step_command_native_ignores_variant():

@@ -142,30 +142,6 @@
               </property>
              </widget>
             </item>
-            <item row="0" column="3">
-             <widget class="QLabel" name="lblVariant">
-              <property name="text">
-               <string>Вариант:</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="4">
-             <widget class="QComboBox" name="cmbVariant">
-              <item>
-               <property name="text">
-                <string>legacy</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>aligned</string>
-               </property>
-              </item>
-             </widget>
-            </item>
             <item row="0" column="7">
              <widget class="QLabel" name="lblEngine">
               <property name="text">

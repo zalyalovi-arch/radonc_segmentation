@@ -135,8 +135,6 @@ class MainWindow(QMainWindow):
         self.btnRun = self._ui_get("btnRun")
         self.chkCrop = self._ui_get("chkCrop")
         self.chkAsync = self._ui_get("chkAsync")
-        self.cmbVariant = self._ui_get("cmbVariant")
-        self.lblVariant = self._ui_get("lblVariant")
         self.lblStride = self._ui_get("lblStride")
         self.cmbEngine = self._ui_get("cmbEngine")
         self.entryStride = self._ui_get("entryStride")
@@ -217,7 +215,6 @@ class MainWindow(QMainWindow):
             self.entryExport.setText(config.DEFAULT_EXPORT_DIR)
         self.chkCrop.setChecked(bool(config.CROP_AIR))
         self.chkAsync.setChecked(int(config.N_ASYNC_REQUESTS) > 1)
-        self.cmbVariant.setCurrentText(str(config.DEFAULT_VARIANT))
         self.cmbEngine.setCurrentText(str(config.DEFAULT_ENGINE))
         self._on_engine_changed()
         self.entryStride.setText(str(config.STEP_SIZE_RATIO))
@@ -443,7 +440,7 @@ class MainWindow(QMainWindow):
         """Выбор движка на вкладке «Работа»: у нативного nnUNet свои
         преобработка/устройство, поэтому OpenVINO-опции не применимы."""
         native = self.cmbEngine.currentText() == "nnunet_native"
-        for w in (self.lblVariant, self.cmbVariant, self.chkCrop, self.chkAsync,
+        for w in (self.chkCrop, self.chkAsync,
                   self.entryStride, self.lblStride):
             w.setEnabled(not native)
         self.lblInfo.setText(
@@ -512,8 +509,6 @@ class MainWindow(QMainWindow):
                                    "--engine", engine)
             if allow_cpu:
                 cmd.append("--allow-cpu")
-            if engine != "nnunet_native":
-                cmd += ["--variant", self.cmbVariant.currentText()]
         except RuntimeError as e:
             QMessageBox.critical(self, "Ошибка", str(e))
             return

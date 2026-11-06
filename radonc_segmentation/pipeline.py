@@ -75,22 +75,22 @@ def infer_step_command(engine, variant, patient_id, common_flags, ov_flags, allo
     common_flags — понятны всем движкам (--stride/--folds/--model),
     ov_flags — только OpenVINO (--no-crop/--no-async/--device),
     allow_cpu — разрешить native-движку CPU вместо CUDA (движок
-    nnunet_native на CPU КРАЙНЕ медленный; флаг только для проверок)."""
+    nnunet_native на CPU КРАЙНЕ медленный; флаг только для проверок).
+    variant УСТАРЕЛ: с 07.11 единственная преобработка — aligned
+    (вердикт на 10 кейсах); "legacy" принимается с предупреждением."""
+    if str(variant).lower() == "legacy":
+        print("[pipeline] ВНИМАНИЕ: variant=legacy устарел (вердикт 07.11: aligned лучше "
+              "по MACRO и малым структурам) — выполняю aligned")
     if engine == "nnunet_native":
-        # нативный nnUNet: преобработку/sliding window делает сам,
-        # варианты legacy/aligned не участвуют
+        # нативный nnUNet: преобработку/sliding window делает сам
         cmd = ([sys.executable, "-m", "radonc_segmentation.native.native_infer",
                 patient_id, "--force"] + common_flags)
         if allow_cpu:
             cmd.append("--allow-cpu")
         return cmd, f"{patient_id}_native.nii.gz", "native"
-    if variant == "aligned":
-        cmd = [sys.executable, "-m", "radonc_segmentation.aligned.infer_ov_aligned",
-               patient_id] + common_flags + ov_flags
-        return cmd, f"{patient_id}_aligned.nii.gz", variant
     cmd = [sys.executable, "-m", "radonc_segmentation.infer_ov",
            patient_id, "--force"] + common_flags + ov_flags
-    return cmd, f"{patient_id}.nii.gz", variant
+    return cmd, f"{patient_id}.nii.gz", "aligned"
 
 
 def main():
@@ -100,7 +100,8 @@ def main():
     p = argparse.ArgumentParser(description="Полный пайплайн оконтуривания H&N")
     p.add_argument("target", help="ID пациента (P007 / 7) ИЛИ путь к папке с DICOM")
     p.add_argument("--variant", default=config.DEFAULT_VARIANT, choices=["legacy", "aligned"],
-                   help=f"legacy — как в продакшне; aligned — выровненная преобработка (сравнение). "
+                   help=f"УСТАРЕЛ: с 07.11 единственная преобработка — aligned; значение legacy "
+                        f"принимается с предупреждением и приводится к aligned. "
                         f"По умолчанию из settings.ini: {config.DEFAULT_VARIANT}")
     p.add_argument("--engine", default=config.DEFAULT_ENGINE, choices=list(config.VALID_ENGINES),
                    help=f"Движок инференса. По умолчанию из settings.ini: {config.DEFAULT_ENGINE}. "

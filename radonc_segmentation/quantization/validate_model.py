@@ -100,10 +100,7 @@ def run_inference(case, img_path, out_path, model_name, args, tmp_dir):
         if getattr(args, "allow_cpu", False):
             cmd.append("--allow-cpu")
     else:
-        module = ("radonc_segmentation.aligned.infer_ov_aligned"
-                  if str(config.DEFAULT_VARIANT).lower() == "aligned"
-                  else "radonc_segmentation.infer_ov")
-        cmd = [sys.executable, "-m", module,
+        cmd = [sys.executable, "-m", "radonc_segmentation.infer_ov",
                case, "--input", img_path, "--output", out_path,
                "--force", "--tmp-dir", tmp_dir, "--model", model_name]
     if args.folds:

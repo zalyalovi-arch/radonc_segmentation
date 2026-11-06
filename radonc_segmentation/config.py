@@ -71,7 +71,11 @@ NUM_THREADS = 6
 N_ASYNC_REQUESTS = 2
 OV_PERFORMANCE_HINT = "LATENCY"
 
-DEFAULT_VARIANT = "legacy"
+# Вариант преобработки OpenVINO. С 07.11 единственный — aligned
+# (вердикт на 10 кейсах: MACRO 0.8423 vs 0.8364 legacy, малые структуры
+# лучше, скорость паритет); legacy принимается с предупреждением и
+# приводится к aligned.
+DEFAULT_VARIANT = "aligned"
 # движок инференса: openvino (IR на CPU, прод) | nnunet_native (PyTorch,
 # оригинальный nnUNet — для машин с NVIDIA GPU). Подробности: README, «GPU».
 DEFAULT_ENGINE = "openvino"
@@ -341,8 +345,12 @@ def _load_settings():
         raise SettingsValidationError(f"[settings.ini] inference.PIPELINE_SCHED: допустимо queue | rotate, получено {g['PIPELINE_SCHED']!r}")
     if str(g["OUTPUT_LAYOUT"]).lower() not in ("ncdhw", "ndhwc"):
         raise SettingsValidationError(f"[settings.ini] inference.OUTPUT_LAYOUT: допустимо ncdhw | ndhwc, получено {g['OUTPUT_LAYOUT']!r}")
-    if str(g["DEFAULT_VARIANT"]).lower() not in ("legacy", "aligned"):
-        raise SettingsValidationError(f"[settings.ini] inference.VARIANT: допустимо legacy | aligned, получено {g['DEFAULT_VARIANT']!r}")
+    if str(g["DEFAULT_VARIANT"]).lower() == "legacy":
+        print("[config] ВНИМАНИЕ: VARIANT=legacy устарел (вердикт 07.11: aligned лучше по "
+              "MACRO и малым структурам при равной скорости) — использую aligned")
+        g["DEFAULT_VARIANT"] = "aligned"
+    elif str(g["DEFAULT_VARIANT"]).lower() != "aligned":
+        raise SettingsValidationError(f"[settings.ini] inference.VARIANT: допустимо aligned (legacy устарел и приведён к aligned автоматически), получено {g['DEFAULT_VARIANT']!r}")
     if str(g["DEFAULT_ENGINE"]).lower() not in VALID_ENGINES:
         raise SettingsValidationError(f"[settings.ini] inference.ENGINE: допустимо {' | '.join(VALID_ENGINES)}, получено {g['DEFAULT_ENGINE']!r}")
 

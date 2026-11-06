@@ -91,77 +91,62 @@ def run_validation(n_cases, csv_path=None):
         )
     print(f"Случаев к валидации: {len(cases)}")
 
-    infer_legacy = [sys.executable, "-m", "radonc_segmentation.infer_ov"]
-    infer_aligned = [sys.executable, "-m", "radonc_segmentation.aligned.infer_ov_aligned"]
-
-    per_variant = {"legacy": [], "aligned": []}
+    infer_cmd = [sys.executable, "-m", "radonc_segmentation.infer_ov"]
     name_by_value = {v: k for k, v in config.LABELS.items()}
 
+    per_case = []  # [(case, {label: dice})]
     for img_path, gt_path, case in cases:
         print(f"\n### Случай {case}")
-        out_legacy = os.path.join(config.LOG_DIR, f"_val_{case}_legacy.nii.gz")
-        out_aligned = os.path.join(config.LOG_DIR, f"_val_{case}_aligned.nii.gz")
+        out = os.path.join(config.LOG_DIR, f"_val_{case}.nii.gz")
         os.makedirs(config.LOG_DIR, exist_ok=True)
 
-        for script, out, variant in [
-            (infer_legacy, out_legacy, "legacy"),
-            (infer_aligned, out_aligned, "aligned"),
-        ]:
-            tmp = os.path.join(config.LOG_DIR, f"_tmp_{variant}")
-            cmd = script + [case, "--input", img_path, "--output", out,
-                            "--force", "--tmp-dir", tmp]
-            print(f"[{variant}] {' '.join(cmd)}")
-            t0 = time.perf_counter()
-            r = subprocess.run(cmd, cwd=PROJECT_DIR)
-            if r.returncode != 0:
-                print(f"[{variant}] ОШИБКА (код {r.returncode}) — пропуск")
-                continue
-            print(f"[{variant}] готово за {(time.perf_counter() - t0) / 60:.1f} мин")
+        tmp = os.path.join(config.LOG_DIR, "_tmp_val")
+        cmd = infer_cmd + [case, "--input", img_path, "--output", out,
+                           "--force", "--tmp-dir", tmp]
+        print(f"[infer] {' '.join(cmd)}")
+        t0 = time.perf_counter()
+        r = subprocess.run(cmd, cwd=PROJECT_DIR)
+        if r.returncode != 0:
+            print(f"[infer] ОШИБКА (код {r.returncode}) — пропуск")
+            continue
+        print(f"[infer] готово за {(time.perf_counter() - t0) / 60:.1f} мин")
 
+        if not os.path.isfile(out):
+            continue
         gt_arr = sitk.GetArrayFromImage(sitk.ReadImage(gt_path))
-        for variant, out in [("legacy", out_legacy), ("aligned", out_aligned)]:
-            if not os.path.isfile(out):
-                continue
-            pred = sitk.GetArrayFromImage(sitk.ReadImage(out))
-            if pred.shape != gt_arr.shape:
-                print(f"[{variant}] размер предсказания {pred.shape} != GT {gt_arr.shape}, пропуск")
-                continue
-            labels = [int(v) for v in np.unique(gt_arr) if int(v) > 0]
-            row = {}
-            for lbl in labels:
-                d = dice(pred == lbl, gt_arr == lbl)
-                if d is not None:
-                    row[lbl] = d
-            per_variant[variant].append((case, row))
-            os.remove(out)
+        pred = sitk.GetArrayFromImage(sitk.ReadImage(out))
+        if pred.shape != gt_arr.shape:
+            print(f"[infer] размер предсказания {pred.shape} != GT {gt_arr.shape}, пропуск")
+            continue
+        labels = [int(v) for v in np.unique(gt_arr) if int(v) > 0]
+        row = {}
+        for lbl in labels:
+            d = dice(pred == lbl, gt_arr == lbl)
+            if d is not None:
+                row[lbl] = d
+        per_case.append((case, row))
+        os.remove(out)
 
     # Сводная таблица
-    all_labels = sorted({lbl for v in per_variant.values() for _, row in v for lbl in row})
+    all_labels = sorted({lbl for _, row in per_case for lbl in row})
     print("\n===== СВОДКА (Dice против GT) =====")
-    header = f"{'label':>5}  {'орган':<20} {'legacy':>8} {'aligned':>8} {'разница':>8}"
-    print(header)
+    print(f"{'label':>5}  {'орган':<20} {'dice':>8} {'n':>3}")
     csv_rows = []
     for lbl in all_labels:
-        leg = [row[lbl] for _, row in per_variant["legacy"] if lbl in row]
-        alg = [row[lbl] for _, row in per_variant["aligned"] if lbl in row]
-        leg_m = np.mean(leg) if leg else None
-        alg_m = np.mean(alg) if alg else None
-        diff = (alg_m - leg_m) if (leg_m is not None and alg_m is not None) else None
+        vals = [row[lbl] for _, row in per_case if lbl in row]
+        m = np.mean(vals) if vals else None
         print(f"{lbl:>5}  {name_by_value.get(lbl, lbl):<20} "
-              f"{leg_m if leg_m is not None else float('nan'):>8.3f} "
-              f"{alg_m if alg_m is not None else float('nan'):>8.3f} "
-              f"{diff if diff is not None else float('nan'):>+8.3f}")
-        csv_rows.append([lbl, name_by_value.get(lbl, lbl), leg_m, alg_m, diff])
+              f"{m if m is not None else float('nan'):>8.3f} {len(vals):>3}")
+        csv_rows.append([lbl, name_by_value.get(lbl, lbl), m])
 
-    for variant, runs in per_variant.items():
-        vals = [d for _, row in runs for d in row.values()]
-        if vals:
-            print(f"MEAN {variant}: {np.mean(vals):.3f} ({len(runs)} случаев, {len(vals)} органов)")
+    vals = [d for _, row in per_case for d in row.values()]
+    if vals:
+        print(f"MEAN: {np.mean(vals):.4f} ({len(per_case)} случаев, {len(vals)} органов)")
 
     if csv_path:
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f, delimiter=";")
-            w.writerow(["label", "organ", "dice_legacy", "dice_aligned", "diff"])
+            w.writerow(["label", "organ", "dice"])
             w.writerows(csv_rows)
         print(f"CSV: {csv_path}")
 

@@ -119,8 +119,7 @@ def build_calibration(n_volumes, patches_per_volume, seed=42):
         # тот же домен, что у aligned-инференса: ресемпл в training spacing,
         # кроп тела по HU, CTNormalization с глобальными статистиками датасета
         import SimpleITK as sitk
-        from radonc_segmentation.aligned.infer_ov_aligned import (
-            load_norm_stats, resample_to_target)
+        from radonc_segmentation.infer_ov import load_norm_stats, resample_to_target
         from radonc_segmentation import ov_infer_core as core_mod
         tgt_xyz = tuple(reversed(config.TARGET_SPACING_ZYX))
         clip_lo, clip_hi, ct_mean, ct_std = load_norm_stats()
