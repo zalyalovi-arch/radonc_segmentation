@@ -35,8 +35,13 @@ _gui_error.log
 *.npz
 *.dcm
 screenshots_tmp/
-l0_scan/ckpt/
 *.pth
+
+# --- статья и экспериментальные папки (не публикуются; файлы остаются локально) ---
+paper/
+l0_scan/
+perstage_er/
+depgraph_xtiny/
 
 # --- IDE / ОС ---
 .vscode/
