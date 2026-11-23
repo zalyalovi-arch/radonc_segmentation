@@ -82,6 +82,7 @@
 | 2026-11-09 | **LADDER6 v3 γ-cut INT8** (`prox_gamma_INT8`; кандидат scan-4-ladder v3: 75.4% структурной, fold-val 0.8570, гейт 0.8805 НЕ пройден) | каналы [16,32,64,128,256,320] (глубокие стадии по 16, декодер цел), ≈593 GMACs (−24% к dense 786.9 walker), bin 11.6 МБ (−89%), INT8 256p (Kaggle CPU, quantization-final v24) | 1 | **0.7648** | **1.8** | **2.04** |
 | 2026-11-16 | **CL-1 v3m γ-cut INT8** (`close-loop-v3`; кандидат scan-4-cl1-v3 v4: 32.0% структурной, cut+ft 0.87445 ✔ гейт 0.86) | каналы [32,48,64,80,112,128,144,160,192,240,256,320] (per-layer align ×16), params_eff 41.9M, bin 42.0 МБ (−59% к dense 101.8), INT8 256p (Kaggle v29, MASKS_FROM_CKPT) | 1 | **0.8316** | 1.9 | 2.14 |
 | 2026-11-20 | **SAURON 0.5 INT8** (`sauron_0-5`; λ=0.5, block-mask+FD loss с restore) | per-layer ширины [18..320] (63 conv, align не кратен 16), bin 68.6 МБ (−33%), INT8 (FQ=161), md5(bin) 482d1b4e… | 1 | 0.7952 | 1.8 | 2.10 |
+| 2026-11-23 | **iter_gamma INT8** (`iter_gamma`; γ-firstN_iter Iter-A, final_A_int8) | ширины [16,24,32,48,64,96,128] (stem 16, enc1 48, enc2 96, enc3 128, dec 64), bin 13.4 МБ (−87%), INT8 (FQ=161), md5(bin) b553b9f5… | 1 | **0.8205** | **1.2** | **1.28** |
 
 ### По кейсам (Dice, HW-B)
 
